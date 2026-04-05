@@ -44,9 +44,6 @@
   .spinner { display: none; width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .result-area { margin-top: 16px; }
-  .result-meta { font-size: 13px; color: #777; margin-bottom: 12px; }
-  .result-meta span { font-weight: 600; color: #333; }
   .result-image { max-width: 100%; border-radius: 8px; border: 1px solid #e0e0e0; }
   .result-text { background: #f7f8fa; border-radius: 8px; padding: 16px; font-size: 14px; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; border: 1px solid #e8e8e8; }
   .result-error { background: #fff0f0; border: 1px solid #ffcccc; color: #cc0000; border-radius: 8px; padding: 16px; font-size: 14px; }
@@ -63,6 +60,60 @@
     background: #52c41a; color: #fff; border: none; border-radius: 6px; cursor: pointer; text-decoration: none;
   }
   .download-btn:hover { background: #3fad09; }
+
+  /* Reference images */
+  .ref-images-area { margin-top: 8px; }
+  .ref-images-list { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  .ref-thumb-wrap {
+    position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden;
+    border: 2px solid #d0d5dd; flex-shrink: 0;
+  }
+  .ref-thumb-wrap img { width: 100%; height: 100%; object-fit: cover; }
+  .ref-thumb-remove {
+    position: absolute; top: 2px; right: 2px; width: 20px; height: 20px;
+    background: rgba(0,0,0,0.55); color: #fff; border: none; border-radius: 50%;
+    font-size: 14px; line-height: 20px; text-align: center; cursor: pointer;
+  }
+  .ref-thumb-remove:hover { background: rgba(200,0,0,0.8); }
+
+  .ref-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ref-btn {
+    padding: 5px 14px; border: 1px dashed #aab; border-radius: 8px; background: #fafbfc;
+    cursor: pointer; font-size: 13px; color: #555; transition: all 0.15s;
+  }
+  .ref-btn:hover { border-color: #4f8cff; color: #4f8cff; }
+
+  /* History use-as-ref button */
+  .use-ref-btn {
+    display: inline-block; margin-top: 8px; margin-left: 8px; padding: 4px 14px; font-size: 12px;
+    background: #4f8cff; color: #fff; border: none; border-radius: 6px; cursor: pointer;
+  }
+  .use-ref-btn:hover { background: #3a6fd8; }
+
+  /* Modal for picking history images */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100;
+    justify-content: center; align-items: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-box {
+    background: #fff; border-radius: 14px; padding: 24px; max-width: 600px; width: 90%;
+    max-height: 80vh; overflow-y: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+  }
+  .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 14px; }
+  .modal-grid { display: flex; gap: 10px; flex-wrap: wrap; }
+  .modal-thumb {
+    width: 100px; height: 100px; border-radius: 8px; overflow: hidden; cursor: pointer;
+    border: 3px solid transparent; transition: border-color 0.15s; flex-shrink: 0;
+  }
+  .modal-thumb:hover { border-color: #4f8cff; }
+  .modal-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .modal-empty { color: #999; font-size: 14px; padding: 20px 0; }
+  .modal-close {
+    margin-top: 14px; padding: 6px 20px; background: #eee; border: none; border-radius: 8px;
+    cursor: pointer; font-size: 13px;
+  }
+  .modal-close:hover { background: #ddd; }
 </style>
 </head>
 <body>
@@ -74,22 +125,12 @@
     <div class="card-title">API 配置</div>
     <div class="form-row">
       <div class="form-group" style="flex:2">
-        <label>API Endpoint</label>
-        <input id="apiUrl" value="https://sparkcode.top/v1/chat/completions" />
-      </div>
-      <div class="form-group" style="flex:2">
         <label>API Key</label>
         <input id="apiKey" type="password" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
       </div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
+      <div class="form-group" style="flex:2">
         <label>Model</label>
         <input id="model" value="gemini-3.1-flash-image-preview" />
-      </div>
-      <div class="form-group" style="flex:0 0 120px">
-        <label>Max Tokens</label>
-        <input id="maxTokens" type="number" value="4096" />
       </div>
     </div>
   </div>
@@ -122,6 +163,19 @@
     </div>
   </div>
 
+  <!-- Reference Images -->
+  <div class="card">
+    <div class="card-title">参考图 (图生图，可选)</div>
+    <div class="ref-actions">
+      <label class="ref-btn" id="uploadRefBtn">
+        + 本地上传
+        <input type="file" id="refFileInput" accept="image/*" multiple hidden />
+      </label>
+      <button class="ref-btn" id="pickHistoryBtn">+ 从历史结果选取</button>
+    </div>
+    <div class="ref-images-list" id="refImagesList"></div>
+  </div>
+
   <!-- Prompt -->
   <div class="card">
     <div class="card-title">提示词</div>
@@ -146,8 +200,24 @@
   </div>
 </div>
 
+<!-- Modal: pick from history -->
+<div class="modal-overlay" id="historyModal">
+  <div class="modal-box">
+    <div class="modal-title">选择历史结果图片</div>
+    <div class="modal-grid" id="historyModalGrid"></div>
+    <button class="modal-close" onclick="closeHistoryModal()">关闭</button>
+  </div>
+</div>
+
 <script>
-// Size button toggle
+const API_URL = 'https://sparkcode.top/v1/chat/completions';
+const MAX_TOKENS = 4096;
+
+// ---- State ----
+let refImages = [];       // array of data-url strings
+let historyImages = [];   // array of data-url strings from results
+
+// ---- Size buttons ----
 document.getElementById('sizeBtns').addEventListener('click', e => {
   const btn = e.target.closest('.size-btn');
   if (!btn) return;
@@ -160,20 +230,109 @@ function getSelectedSize() {
   return active ? active.dataset.size : '';
 }
 
+function getSizeLabel() {
+  const size = getSelectedSize();
+  const aspect = document.getElementById('aspectRatio').value;
+  let label = size || '默认';
+  if (aspect) label += ' / ' + aspect;
+  return label;
+}
+
+// ---- Reference image management ----
+document.getElementById('refFileInput').addEventListener('change', e => {
+  Array.from(e.target.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = ev => { addRefImage(ev.target.result); };
+    reader.readAsDataURL(file);
+  });
+  e.target.value = '';
+});
+
+document.getElementById('pickHistoryBtn').addEventListener('click', openHistoryModal);
+
+function addRefImage(dataUrl) {
+  refImages.push(dataUrl);
+  renderRefImages();
+}
+
+function removeRefImage(idx) {
+  refImages.splice(idx, 1);
+  renderRefImages();
+}
+
+function renderRefImages() {
+  const list = document.getElementById('refImagesList');
+  list.innerHTML = '';
+  refImages.forEach((url, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'ref-thumb-wrap';
+    wrap.innerHTML = `<img src="${url}" /><button class="ref-thumb-remove" title="移除">&times;</button>`;
+    wrap.querySelector('.ref-thumb-remove').addEventListener('click', () => removeRefImage(i));
+    list.appendChild(wrap);
+  });
+}
+
+// ---- History modal ----
+function openHistoryModal() {
+  const grid = document.getElementById('historyModalGrid');
+  grid.innerHTML = '';
+  if (historyImages.length === 0) {
+    grid.innerHTML = '<div class="modal-empty">暂无历史图片</div>';
+  } else {
+    historyImages.forEach(url => {
+      const thumb = document.createElement('div');
+      thumb.className = 'modal-thumb';
+      thumb.innerHTML = `<img src="${url}" />`;
+      thumb.addEventListener('click', () => {
+        addRefImage(url);
+        closeHistoryModal();
+      });
+      grid.appendChild(thumb);
+    });
+  }
+  document.getElementById('historyModal').classList.add('show');
+}
+
+function closeHistoryModal() {
+  document.getElementById('historyModal').classList.remove('show');
+}
+
+document.getElementById('historyModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeHistoryModal();
+});
+
+// ---- Use-as-ref from history item ----
+function useAsRef(dataUrl) {
+  addRefImage(dataUrl);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ---- Build request ----
 function buildRequestBody() {
   const model = document.getElementById('model').value.trim();
   const prompt = document.getElementById('prompt').value.trim();
-  const maxTokens = parseInt(document.getElementById('maxTokens').value) || 4096;
   const size = getSelectedSize();
   const aspect = document.getElementById('aspectRatio').value;
 
+  // Build message content
+  let content;
+  if (refImages.length > 0) {
+    // Multimodal: images + text
+    content = [];
+    refImages.forEach(dataUrl => {
+      content.push({ type: 'image_url', image_url: { url: dataUrl } });
+    });
+    content.push({ type: 'text', text: prompt });
+  } else {
+    content = prompt;
+  }
+
   const body = {
     model,
-    messages: [{ role: 'user', content: prompt }],
-    max_tokens: maxTokens
+    messages: [{ role: 'user', content }],
+    max_tokens: MAX_TOKENS
   };
 
-  // Build image_config if needed
   if (size || aspect) {
     const imageConfig = {};
     if (size) imageConfig.image_size = size;
@@ -184,16 +343,8 @@ function buildRequestBody() {
   return body;
 }
 
-function getSizeLabel() {
-  const size = getSelectedSize();
-  const aspect = document.getElementById('aspectRatio').value;
-  let label = size || '默认';
-  if (aspect) label += ' / ' + aspect;
-  return label;
-}
-
+// ---- Send request ----
 async function sendRequest() {
-  const apiUrl = document.getElementById('apiUrl').value.trim();
   const apiKey = document.getElementById('apiKey').value.trim();
   if (!apiKey) { alert('请填写 API Key'); return; }
 
@@ -209,7 +360,7 @@ async function sendRequest() {
   const startTime = Date.now();
 
   try {
-    const resp = await fetch(apiUrl, {
+    const resp = await fetch(API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -224,56 +375,73 @@ async function sendRequest() {
     addResult(data, body, elapsed);
   } catch (err) {
     statusText.textContent = '请求失败';
-    addError(err.message, body);
+    addError(err.message);
   } finally {
     btn.disabled = false;
     spinner.style.display = 'none';
   }
 }
 
+// ---- Extract image data url from response ----
+function extractImageDataUrl(data) {
+  const content = data.choices?.[0]?.message?.content || '';
+
+  // markdown image with base64
+  const imgMatch = content.match(/!\[.*?\]\(data:image\/(png|jpeg|webp|gif);base64,([^)]+)\)/);
+  if (imgMatch) return `data:image/${imgMatch[1]};base64,${imgMatch[2]}`;
+
+  // raw data url
+  const rawMatch = content.match(/^data:image\/(png|jpeg|webp|gif);base64,(.+)$/s);
+  if (rawMatch) return `data:image/${rawMatch[1]};base64,${rawMatch[2]}`;
+
+  // inline_data in parts
+  const parts = data.choices?.[0]?.message?.parts || [];
+  const inlinePart = parts.find(p => p.inline_data);
+  if (inlinePart) {
+    const mime = inlinePart.inline_data.mime_type || 'image/png';
+    return `data:${mime};base64,${inlinePart.inline_data.data}`;
+  }
+
+  return null;
+}
+
+// ---- Display results ----
 function addResult(data, reqBody, elapsed) {
   const card = document.getElementById('resultCard');
   card.style.display = '';
   const history = document.getElementById('history');
-
   const item = document.createElement('div');
   item.className = 'history-item';
 
   const now = new Date().toLocaleTimeString('zh-CN');
   const sizeLabel = getSizeLabel();
-  const prompt = reqBody.messages[0].content;
+  const promptContent = reqBody.messages[0].content;
+  const promptText = typeof promptContent === 'string'
+    ? promptContent
+    : (promptContent.find(p => p.type === 'text')?.text || '');
+  const hasRef = typeof promptContent !== 'string';
 
   if (data.error) {
     item.innerHTML = `
       <div class="history-header">
         <span class="history-tag">${sizeLabel}</span>
+        ${hasRef ? '<span class="history-tag" style="background:#fff3e0;color:#e65100;">图生图</span>' : ''}
         <span class="history-time">${now} · ${elapsed}s</span>
       </div>
-      <div class="history-prompt">${escapeHtml(prompt)}</div>
+      <div class="history-prompt">${escapeHtml(promptText)}</div>
       <div class="result-error">Error: ${escapeHtml(JSON.stringify(data.error, null, 2))}</div>
     `;
   } else {
     const content = data.choices?.[0]?.message?.content || '';
-    // Try to extract base64 image from markdown or raw base64
-    const imgMatch = content.match(/!\[.*?\]\(data:image\/(png|jpeg|webp|gif);base64,([^)]+)\)/);
-    const rawBase64Match = !imgMatch && content.match(/^data:image\/(png|jpeg|webp|gif);base64,(.+)$/s);
-    // Also check for inline_data in parts
-    const parts = data.choices?.[0]?.message?.parts || [];
-    const inlinePart = parts.find(p => p.inline_data);
+    const dataUrl = extractImageDataUrl(data);
 
     let mediaHtml = '';
-    if (imgMatch) {
-      const dataUrl = `data:image/${imgMatch[1]};base64,${imgMatch[2]}`;
-      mediaHtml = `<img class="result-image" src="${dataUrl}" />` + downloadLink(dataUrl, now);
-    } else if (rawBase64Match) {
-      const dataUrl = `data:image/${rawBase64Match[1]};base64,${rawBase64Match[2]}`;
-      mediaHtml = `<img class="result-image" src="${dataUrl}" />` + downloadLink(dataUrl, now);
-    } else if (inlinePart) {
-      const mime = inlinePart.inline_data.mime_type || 'image/png';
-      const dataUrl = `data:${mime};base64,${inlinePart.inline_data.data}`;
-      mediaHtml = `<img class="result-image" src="${dataUrl}" />` + downloadLink(dataUrl, now);
+    if (dataUrl) {
+      historyImages.push(dataUrl);
+      mediaHtml = `<img class="result-image" src="${dataUrl}" />`
+        + downloadLink(dataUrl)
+        + `<button class="use-ref-btn" onclick="useAsRef(historyImages[${historyImages.length - 1}])">用作参考图</button>`;
     } else {
-      // Show as text
       mediaHtml = `<div class="result-text">${escapeHtml(content)}</div>`;
     }
 
@@ -281,9 +449,10 @@ function addResult(data, reqBody, elapsed) {
     item.innerHTML = `
       <div class="history-header">
         <span class="history-tag">${sizeLabel}</span>
+        ${hasRef ? '<span class="history-tag" style="background:#fff3e0;color:#e65100;">图生图</span>' : ''}
         <span class="history-time">${now} · ${elapsed}s · content长度: ${contentLen}</span>
       </div>
-      <div class="history-prompt">${escapeHtml(prompt)}</div>
+      <div class="history-prompt">${escapeHtml(promptText)}</div>
       ${mediaHtml}
     `;
   }
@@ -291,7 +460,7 @@ function addResult(data, reqBody, elapsed) {
   history.prepend(item);
 }
 
-function addError(msg, reqBody) {
+function addError(msg) {
   const card = document.getElementById('resultCard');
   card.style.display = '';
   const history = document.getElementById('history');
@@ -308,7 +477,7 @@ function addError(msg, reqBody) {
   history.prepend(item);
 }
 
-function downloadLink(dataUrl, time) {
+function downloadLink(dataUrl) {
   return `<a class="download-btn" href="${dataUrl}" download="image_${Date.now()}.png">下载图片</a>`;
 }
 
