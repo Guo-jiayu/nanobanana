@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Generation API</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; min-height: 100vh; }
+  .container { max-width: 960px; margin: 0 auto; padding: 24px; }
+  h1 { text-align: center; margin-bottom: 24px; font-size: 24px; color: #1a1a1a; }
+
+  .card { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .card-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #555; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+
+  .form-row { display: flex; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+  .form-group { display: flex; flex-direction: column; flex: 1; min-width: 200px; }
+  .form-group.full { flex: 1 1 100%; }
+  label { font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #555; }
+  input, select, textarea {
+    padding: 8px 12px; border: 1px solid #d0d5dd; border-radius: 8px; font-size: 14px;
+    transition: border-color 0.2s; outline: none; font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { border-color: #4f8cff; box-shadow: 0 0 0 2px rgba(79,140,255,0.15); }
+  textarea { resize: vertical; min-height: 60px; }
+
+  .size-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .size-btn {
+    padding: 6px 16px; border: 2px solid #d0d5dd; border-radius: 8px; background: #fff;
+    cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; color: #555;
+  }
+  .size-btn:hover { border-color: #4f8cff; color: #4f8cff; }
+  .size-btn.active { border-color: #4f8cff; background: #4f8cff; color: #fff; }
+
+  .btn-send {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 32px; background: #4f8cff; color: #fff; border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+  }
+  .btn-send:hover { background: #3a6fd8; }
+  .btn-send:disabled { background: #a0b4d0; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 12px; align-items: center; }
+
+  .spinner { display: none; width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .result-area { margin-top: 16px; }
+  .result-meta { font-size: 13px; color: #777; margin-bottom: 12px; }
+  .result-meta span { font-weight: 600; color: #333; }
+  .result-image { max-width: 100%; border-radius: 8px; border: 1px solid #e0e0e0; }
+  .result-text { background: #f7f8fa; border-radius: 8px; padding: 16px; font-size: 14px; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; border: 1px solid #e8e8e8; }
+  .result-error { background: #fff0f0; border: 1px solid #ffcccc; color: #cc0000; border-radius: 8px; padding: 16px; font-size: 14px; }
+
+  .history { display: flex; flex-direction: column; gap: 16px; }
+  .history-item { border: 1px solid #e8e8e8; border-radius: 10px; padding: 16px; background: #fafbfc; }
+  .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
+  .history-tag { font-size: 12px; padding: 2px 10px; border-radius: 12px; background: #e8f0fe; color: #3a6fd8; font-weight: 600; }
+  .history-time { font-size: 12px; color: #999; }
+  .history-prompt { font-size: 13px; color: #666; margin-bottom: 10px; font-style: italic; }
+
+  .download-btn {
+    display: inline-block; margin-top: 8px; padding: 4px 14px; font-size: 12px;
+    background: #52c41a; color: #fff; border: none; border-radius: 6px; cursor: pointer; text-decoration: none;
+  }
+  .download-btn:hover { background: #3fad09; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Image Generation API Tester</h1>
+
+  <!-- Config -->
+  <div class="card">
+    <div class="card-title">API 配置</div>
+    <div class="form-row">
+      <div class="form-group" style="flex:2">
+        <label>API Endpoint</label>
+        <input id="apiUrl" value="https://sparkcode.top/v1/chat/completions" />
+      </div>
+      <div class="form-group" style="flex:2">
+        <label>API Key</label>
+        <input id="apiKey" type="password" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Model</label>
+        <input id="model" value="gemini-3.1-flash-image-preview" />
+      </div>
+      <div class="form-group" style="flex:0 0 120px">
+        <label>Max Tokens</label>
+        <input id="maxTokens" type="number" value="4096" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Config -->
+  <div class="card">
+    <div class="card-title">图片配置</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>图片尺寸</label>
+        <div class="size-btns" id="sizeBtns">
+          <button class="size-btn active" data-size="">默认</button>
+          <button class="size-btn" data-size="512">512</button>
+          <button class="size-btn" data-size="1K">1K</button>
+          <button class="size-btn" data-size="2K">2K</button>
+          <button class="size-btn" data-size="4K">4K</button>
+        </div>
+      </div>
+      <div class="form-group" style="flex: 0 0 180px">
+        <label>宽高比 (可选)</label>
+        <select id="aspectRatio">
+          <option value="">不指定</option>
+          <option value="1:1">1:1</option>
+          <option value="16:9">16:9</option>
+          <option value="9:16">9:16</option>
+          <option value="4:3">4:3</option>
+          <option value="3:4">3:4</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prompt -->
+  <div class="card">
+    <div class="card-title">提示词</div>
+    <div class="form-row">
+      <div class="form-group full">
+        <textarea id="prompt" rows="3" placeholder="画一只可爱的橘猫，白色背景">画一只可爱的橘猫，白色背景</textarea>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-send" id="sendBtn" onclick="sendRequest()">
+        <span class="spinner" id="spinner"></span>
+        发送请求
+      </button>
+      <span id="statusText" style="font-size:13px;color:#999;"></span>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="card" id="resultCard" style="display:none;">
+    <div class="card-title">结果</div>
+    <div class="history" id="history"></div>
+  </div>
+</div>
+
+<script>
+// Size button toggle
+document.getElementById('sizeBtns').addEventListener('click', e => {
+  const btn = e.target.closest('.size-btn');
+  if (!btn) return;
+  document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+});
+
+function getSelectedSize() {
+  const active = document.querySelector('.size-btn.active');
+  return active ? active.dataset.size : '';
+}
+
+function buildRequestBody() {
+  const model = document.getElementById('model').value.trim();
+  const prompt = document.getElementById('prompt').value.trim();
+  const maxTokens = parseInt(document.getElementById('maxTokens').value) || 4096;
+  const size = getSelectedSize();
+  const aspect = document.getElementById('aspectRatio').value;
+
+  const body = {
+    model,
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: maxTokens
+  };
+
+  // Build image_config if needed
+  if (size || aspect) {
+    const imageConfig = {};
+    if (size) imageConfig.image_size = size;
+    if (aspect) imageConfig.aspect_ratio = aspect;
+    body.extra_body = { google: { image_config: imageConfig } };
+  }
+
+  return body;
+}
+
+function getSizeLabel() {
+  const size = getSelectedSize();
+  const aspect = document.getElementById('aspectRatio').value;
+  let label = size || '默认';
+  if (aspect) label += ' / ' + aspect;
+  return label;
+}
+
+async function sendRequest() {
+  const apiUrl = document.getElementById('apiUrl').value.trim();
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (!apiKey) { alert('请填写 API Key'); return; }
+
+  const btn = document.getElementById('sendBtn');
+  const spinner = document.getElementById('spinner');
+  const statusText = document.getElementById('statusText');
+
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  statusText.textContent = '请求中…';
+
+  const body = buildRequestBody();
+  const startTime = Date.now();
+
+  try {
+    const resp = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify(body)
+    });
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    const data = await resp.json();
+    statusText.textContent = `完成 (${elapsed}s)`;
+    addResult(data, body, elapsed);
+  } catch (err) {
+    statusText.textContent = '请求失败';
+    addError(err.message, body);
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
+function addResult(data, reqBody, elapsed) {
+  const card = document.getElementById('resultCard');
+  card.style.display = '';
+  const history = document.getElementById('history');
+
+  const item = document.createElement('div');
+  item.className = 'history-item';
+
+  const now = new Date().toLocaleTimeString('zh-CN');
+  const sizeLabel = getSizeLabel();
+  const prompt = reqBody.messages[0].content;
+
+  if (data.error) {
+    item.innerHTML = `
+      <div class="history-header">
+        <span class="history-tag">${sizeLabel}</span>
+        <span class="history-time">${now} · ${elapsed}s</span>
+      </div>
+      <div class="history-prompt">${escapeHtml(prompt)}</div>
+      <div class="result-error">Error: ${escapeHtml(JSON.stringify(data.error, null, 2))}</div>
+    `;
+  } else {
+    const content = data.choices?.[0]?.message?.content || '';
+    // Try to extract base64 image from markdown or raw base64
+    const imgMatch = content.match(/!\[.*?\]\(data:image\/(png|jpeg|webp|gif);base64,([^)]+)\)/);
+    const rawBase64Match = !imgMatch && content.match(/^data:image\/(png|jpeg|webp|gif);base64,(.+)$/s);
+    // Also check for inline_data in parts
+    const parts = data.choices?.[0]?.message?.parts || [];
+    const inlinePart = parts.find(p => p.inline_data);
+
+    let mediaHtml = '';
+    if (imgMatch) {
+      const dataUrl = `data:image/${imgMatch[1]};base64,${imgMatch[2]}`;
+      mediaHtml = `<img class="result-image" src="${dataUrl}" />` + downloadLink(dataUrl, now);
+    } else if (rawBase64Match) {
+      const dataUrl = `data:image/${rawBase64Match[1]};base64,${rawBase64Match[2]}`;
+      mediaHtml = `<img class="result-image" src="${dataUrl}" />` + downloadLink(dataUrl, now);
+    } else if (inlinePart) {
+      const mime = inlinePart.inline_data.mime_type || 'image/png';
+      const dataUrl = `data:${mime};base64,${inlinePart.inline_data.data}`;
+      mediaHtml = `<img class="result-image" src="${dataUrl}" />` + downloadLink(dataUrl, now);
+    } else {
+      // Show as text
+      mediaHtml = `<div class="result-text">${escapeHtml(content)}</div>`;
+    }
+
+    const contentLen = content.length;
+    item.innerHTML = `
+      <div class="history-header">
+        <span class="history-tag">${sizeLabel}</span>
+        <span class="history-time">${now} · ${elapsed}s · content长度: ${contentLen}</span>
+      </div>
+      <div class="history-prompt">${escapeHtml(prompt)}</div>
+      ${mediaHtml}
+    `;
+  }
+
+  history.prepend(item);
+}
+
+function addError(msg, reqBody) {
+  const card = document.getElementById('resultCard');
+  card.style.display = '';
+  const history = document.getElementById('history');
+  const item = document.createElement('div');
+  item.className = 'history-item';
+  const now = new Date().toLocaleTimeString('zh-CN');
+  item.innerHTML = `
+    <div class="history-header">
+      <span class="history-tag">${getSizeLabel()}</span>
+      <span class="history-time">${now}</span>
+    </div>
+    <div class="result-error">网络错误: ${escapeHtml(msg)}</div>
+  `;
+  history.prepend(item);
+}
+
+function downloadLink(dataUrl, time) {
+  return `<a class="download-btn" href="${dataUrl}" download="image_${Date.now()}.png">下载图片</a>`;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
