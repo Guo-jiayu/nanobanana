@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>生图工作台</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1e293b; }
+
+  .app { display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 220px; flex-shrink: 0; background: #1e293b; color: #e2e8f0;
+    display: flex; flex-direction: column; transition: width 0.2s;
+  }
+  .sidebar.collapsed { width: 56px; }
+  .sidebar-header {
+    padding: 18px 20px; font-size: 16px; font-weight: 700; letter-spacing: 0.5px;
+    border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 10px;
+    white-space: nowrap; overflow: hidden;
+  }
+  .sidebar-header .logo { font-size: 20px; }
+  .sidebar.collapsed .sidebar-header .title { display: none; }
+
+  .nav { flex: 1; padding: 10px 0; display: flex; flex-direction: column; gap: 2px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+    cursor: pointer; color: #cbd5e1; font-size: 14px; font-weight: 500;
+    border-left: 3px solid transparent; transition: all 0.15s; white-space: nowrap;
+  }
+  .nav-item:hover { background: #334155; color: #fff; }
+  .nav-item.active {
+    background: #334155; color: #fff; border-left-color: #4f8cff;
+  }
+  .nav-item .icon { font-size: 18px; width: 20px; text-align: center; flex-shrink: 0; }
+  .sidebar.collapsed .nav-item .label { display: none; }
+  .sidebar.collapsed .nav-item { padding: 12px 18px; }
+
+  .sidebar-footer {
+    padding: 12px 20px; border-top: 1px solid #334155; font-size: 12px; color: #64748b;
+    white-space: nowrap; overflow: hidden;
+  }
+  .toggle-btn {
+    background: transparent; border: 1px solid #475569; color: #cbd5e1;
+    padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;
+  }
+  .toggle-btn:hover { background: #334155; }
+
+  /* Content */
+  .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .content iframe {
+    flex: 1; width: 100%; border: none; background: #f0f2f5;
+  }
+  .content iframe.hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span class="logo">🎨</span>
+      <span class="title">生图工作台</span>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="nav-item active" data-target="single">
+        <span class="icon">🖼️</span>
+        <span class="label">单张生图</span>
+      </div>
+      <div class="nav-item" data-target="batch">
+        <span class="icon">📦</span>
+        <span class="label">批量一对一生图</span>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="toggle-btn" onclick="toggleSidebar()">≡ 折叠</button>
+    </div>
+  </aside>
+
+  <main class="content">
+    <iframe id="frame-single" src="单张.html"></iframe>
+    <iframe id="frame-batch" src="批量一对一生图.html" class="hidden"></iframe>
+  </main>
+</div>
+
+<script>
+  const navItems = document.querySelectorAll('.nav-item');
+  const frames = {
+    single: document.getElementById('frame-single'),
+    batch: document.getElementById('frame-batch')
+  };
+
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const target = item.dataset.target;
+      navItems.forEach(n => n.classList.toggle('active', n === item));
+      Object.keys(frames).forEach(k => {
+        frames[k].classList.toggle('hidden', k !== target);
+      });
+    });
+  });
+
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('collapsed');
+  }
+</script>
+</body>
+</html>
