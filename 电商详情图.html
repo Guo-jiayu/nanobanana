@@ -441,6 +441,120 @@
     $('errorBanner').innerHTML = '';
   }
 
+  // ===== Stage 1: LLM =====
+  const SYSTEM_PROMPT =
+`你是电商详情图设计专家。基于用户提供的商品图与商品介绍，规划 N 张电商详情图（主图 / 卖点图 / 使用场景图 / 细节特写 / 规格说明 / 对比图 等中合理选择若干），为每张图生成一条独立、可直接送入文生图模型执行的中文提示词。
+
+输出**只能**是一个 JSON 数组，不要包裹 markdown 代码块、不要任何额外文字。每个元素结构：
+{ "ref_index": <从 1 开始的整数，指向用户上传的第几张商品图>,
+  "prompt": "<完整的、信息自包含的中文文生图提示词，描述构图、风格、光影、文字、布局>",
+  "size": "<可选: 512 | 1K | 2K | 4K>",
+  "aspect_ratio": "<可选: 1:1 | 16:9 | 9:16 | 4:3 | 3:4>" }
+
+要求：
+- ref_index 必须在用户上传的图片范围内
+- 当用户在介绍中明确指定了尺寸/比例需求时，请填入 size / aspect_ratio
+- 未要求时省略这两个字段
+- 提示词需自包含商品的关键视觉信息，不要假设模型已经"看过"参考图
+- 当用户指定了具体张数时严格按数量返回；未指定时返回 3-8 条之间的合理数量`;
+
+  class ParseError extends Error {
+    constructor(message, raw) { super(message); this.raw = raw; }
+  }
+
+  function buildLLMRequest(apiKey, model, count) {
+    const userText =
+      `商品介绍：\n${state.productDescription}\n\n` +
+      (count === 'auto'
+        ? '请生成 3-8 条之间合理数量的文生图提示词。'
+        : `请生成正好 ${count} 条文生图提示词。`);
+
+    const content = state.refImages.map(url => ({
+      type: 'image_url', image_url: { url }
+    }));
+    content.push({ type: 'text', text: userText });
+
+    return {
+      model,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content }
+      ],
+      max_tokens: MAX_TOKENS
+    };
+  }
+
+  async function callLLM(apiKey, model, count) {
+    const body = buildLLMRequest(apiKey, model, count);
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${text.substring(0, 300)}`);
+    }
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    return data;
+  }
+
+  function parseLLMResponse(data) {
+    const content = data.choices?.[0]?.message?.content;
+    if (!content || typeof content !== 'string') {
+      throw new ParseError('LLM 未返回文本内容', JSON.stringify(data).substring(0, 500));
+    }
+
+    let arr;
+    // 尝试 1: 整体当 JSON
+    try { arr = JSON.parse(content); }
+    catch {
+      // 尝试 2: 抓 ```json ... ``` 包裹
+      const fenced = content.match(/```(?:json)?\s*([\s\S]+?)```/);
+      if (fenced) {
+        try { arr = JSON.parse(fenced[1]); } catch {}
+      }
+    }
+    // 尝试 3: 抓首个 [ ... ]
+    if (!arr) {
+      const m = content.match(/\[[\s\S]*\]/);
+      if (m) {
+        try { arr = JSON.parse(m[0]); } catch {}
+      }
+    }
+
+    if (!Array.isArray(arr)) {
+      throw new ParseError('未能解析为 JSON 数组', content);
+    }
+    if (arr.length === 0) {
+      throw new ParseError('LLM 返回了空数组（未生成任何提示词）', content);
+    }
+
+    return arr.map((item, i) => {
+      if (typeof item.ref_index !== 'number'
+          || item.ref_index < 1
+          || item.ref_index > state.refImages.length) {
+        throw new ParseError(
+          `第 ${i + 1} 项 ref_index 越界: ${item.ref_index}（共上传 ${state.refImages.length} 张）`,
+          content
+        );
+      }
+      if (typeof item.prompt !== 'string' || !item.prompt.trim()) {
+        throw new ParseError(`第 ${i + 1} 项 prompt 为空`, content);
+      }
+      return {
+        refIndex: item.ref_index,
+        prompt: item.prompt.trim(),
+        size: typeof item.size === 'string' ? item.size : null,
+        aspect: typeof item.aspect_ratio === 'string' ? item.aspect_ratio : null
+      };
+    });
+  }
+
   // ===== Init (filled by later tasks) =====
   window.addEventListener('DOMContentLoaded', () => {
     loadConfig();
