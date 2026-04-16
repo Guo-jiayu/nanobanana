@@ -712,6 +712,75 @@
     await Promise.all(workers);
   }
 
+  // ===== Result Grid =====
+  function renderResultGrid() {
+    const grid = $('resultGrid');
+    grid.innerHTML = '';
+    state.tasks.forEach(t => {
+      const card = document.createElement('div');
+      card.className = 'result-card';
+      card.id = `task-${t.id}`;
+      card.innerHTML = renderCardInner(t);
+      grid.appendChild(card);
+      bindCardActions(card, t);
+    });
+  }
+
+  function renderResultCard(task) {
+    const card = $(`task-${task.id}`);
+    if (!card) {
+      // 第一次出现：整体重渲染
+      renderResultGrid();
+      return;
+    }
+    card.innerHTML = renderCardInner(task);
+    bindCardActions(card, task);
+  }
+
+  function renderCardInner(t) {
+    let media = '';
+    if (t.status === 'wait') {
+      media = `<div class="media">⏳ 等待</div>`;
+    } else if (t.status === 'running') {
+      media = `<div class="media"><div class="spinner"></div></div>`;
+    } else if (t.status === 'done' && t.result) {
+      media = `<div class="media"><img src="${t.result}" data-zoom></div>`;
+    } else if (t.status === 'error') {
+      media = `<div class="media"><div class="err-text">❌ ${escapeHtml(t.error || '生成失败')}</div></div>`;
+    } else {
+      media = `<div class="media">—</div>`;
+    }
+
+    let actions = '';
+    if (t.status === 'done') {
+      actions = `<button class="btn btn-primary" data-act="download">💾 下载</button>`;
+    } else if (t.status === 'error') {
+      actions = `<button class="btn btn-ghost" data-act="retry">🔄 重试这张</button>`;
+    } else {
+      actions = `<button class="btn btn-ghost" disabled>···</button>`;
+    }
+
+    return media + `<div class="actions">${actions}</div>`;
+  }
+
+  function bindCardActions(card, t) {
+    const img = card.querySelector('img[data-zoom]');
+    if (img) img.addEventListener('click', () => zoomImg(img.src));
+    const dl = card.querySelector('[data-act="download"]');
+    if (dl) dl.addEventListener('click', () => downloadDataUrl(t.result, `detail_${t.id}.png`));
+    const rt = card.querySelector('[data-act="retry"]');
+    if (rt) rt.addEventListener('click', () => retryOne(t.id));
+  }
+
+  async function retryOne(taskId) {
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    task.status = 'wait';
+    task.error = null;
+    task.attempts = 0;
+    await runOneTask(task, snapshotImageConfig(), MAX_RETRIES);
+  }
+
   // ===== Init (filled by later tasks) =====
   window.addEventListener('DOMContentLoaded', () => {
     loadConfig();
