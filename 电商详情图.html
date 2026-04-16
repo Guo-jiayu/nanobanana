@@ -397,6 +397,50 @@
     });
   }
 
+  // ===== Status Bar =====
+  const PHASE_LABEL = {
+    idle: '就绪',
+    llm: 'LLM 生成提示词中...',
+    generating: '并发生图中',
+    done: '完成',
+    llm_failed: 'LLM 阶段失败'
+  };
+
+  function updateStatusBar() {
+    const total = state.tasks.length;
+    const ok = state.tasks.filter(t => t.status === 'done').length;
+    const err = state.tasks.filter(t => t.status === 'error').length;
+    let text = PHASE_LABEL[state.phase] || state.phase;
+    if (total > 0) text += ` ｜ 成功 ${ok} / 失败 ${err} / 总数 ${total}`;
+    $('statusText').textContent = text;
+
+    const busy = state.phase === 'llm' || state.phase === 'generating';
+    $('generateBtn').disabled = busy;
+  }
+
+  // ===== Error Banner =====
+  function showError(level, message, rawText) {
+    // level: 'red' (network/HTTP) | 'yellow' (parse)
+    const cls = level === 'yellow' ? 'banner-yellow' : 'banner-red';
+    const rawBlock = rawText
+      ? `<details><summary style="cursor:pointer;font-size:13px;">展开 LLM 原文</summary><pre>${escapeHtml(rawText)}</pre></details>`
+      : '';
+    $('errorBanner').innerHTML = `
+      <div class="banner ${cls}">
+        <div class="banner-row">
+          <div>${escapeHtml(message)}</div>
+          <button class="banner-btn" id="retryLlmBtn">🔁 重试 LLM</button>
+        </div>
+        ${rawBlock}
+      </div>
+    `;
+    $('retryLlmBtn').addEventListener('click', retryLLM);   // defined in Task 10
+  }
+
+  function clearError() {
+    $('errorBanner').innerHTML = '';
+  }
+
   // ===== Init (filled by later tasks) =====
   window.addEventListener('DOMContentLoaded', () => {
     loadConfig();
@@ -405,6 +449,7 @@
     bindDescription();
     $('clearBtn').addEventListener('click', clearAll);
     $('downloadAllBtn').addEventListener('click', downloadAll);
+    updateStatusBar();
   });
 </script>
 </body>
