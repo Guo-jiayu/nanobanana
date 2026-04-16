@@ -781,6 +781,95 @@
     await runOneTask(task, snapshotImageConfig(), MAX_RETRIES);
   }
 
+  // ===== Generator (entry) =====
+  function validateInputs() {
+    if (!$('llmApiKey').value.trim())   { alert('请填写 LLM API Key');   return false; }
+    if (!$('imageApiKey').value.trim()) { alert('请填写 图像 API Key'); return false; }
+    if (!$('llmModel').value.trim())    { alert('请填写 LLM 模型');     return false; }
+    if (!$('imageModel').value.trim())  { alert('请填写 图像模型');     return false; }
+    if (state.refImages.length === 0)   { alert('请至少上传一张商品图'); return false; }
+    if (!$('productDescription').value.trim()) { alert('请填写商品介绍'); return false; }
+    return true;
+  }
+
+  let _taskIdSeq = 0;
+  function nextTaskId() { return ++_taskIdSeq; }
+
+  async function runStage1() {
+    const llmKey = $('llmApiKey').value.trim();
+    const llmModel = $('llmModel').value.trim();
+    const count = $('count').value;
+
+    state.phase = 'llm';
+    state.llmRawResponse = null;
+    clearError();
+    updateStatusBar();
+
+    let llmData;
+    try {
+      llmData = await callLLM(llmKey, llmModel, count);
+    } catch (e) {
+      state.phase = 'llm_failed';
+      updateStatusBar();
+      showError('red', `LLM 调用失败：${e.message}`, null);
+      return null;
+    }
+
+    state.llmRawResponse = llmData.choices?.[0]?.message?.content || JSON.stringify(llmData);
+
+    let parsed;
+    try {
+      parsed = parseLLMResponse(llmData);
+    } catch (e) {
+      state.phase = 'llm_failed';
+      updateStatusBar();
+      const raw = e.raw || state.llmRawResponse;
+      showError('yellow', `LLM 返回无法解析：${e.message}`, raw);
+      return null;
+    }
+
+    return parsed;
+  }
+
+  async function generate() {
+    if (state.phase === 'llm' || state.phase === 'generating') return;
+    if (!validateInputs()) return;
+
+    // 重置任务列表
+    state.tasks = [];
+    renderResultGrid();
+
+    const parsed = await runStage1();
+    if (!parsed) return;
+
+    // 创建任务并先全部渲染为 wait
+    state.tasks = parsed.map(p => ({
+      id: nextTaskId(),
+      refIndex: p.refIndex,
+      prompt: p.prompt,
+      size: p.size,
+      aspect: p.aspect,
+      status: 'wait',
+      result: null,
+      error: null,
+      attempts: 0
+    }));
+    renderResultGrid();
+
+    state.phase = 'generating';
+    updateStatusBar();
+
+    await runImageStage();
+
+    state.phase = 'done';
+    updateStatusBar();
+  }
+
+  async function retryLLM() {
+    if (state.phase === 'llm' || state.phase === 'generating') return;
+    await generate();   // generate 自身会清空已有 tasks 并重跑全流程
+  }
+
   // ===== Init (filled by later tasks) =====
   window.addEventListener('DOMContentLoaded', () => {
     loadConfig();
@@ -789,6 +878,7 @@
     bindDescription();
     $('clearBtn').addEventListener('click', clearAll);
     $('downloadAllBtn').addEventListener('click', downloadAll);
+    $('generateBtn').addEventListener('click', generate);
     updateStatusBar();
   });
 </script>
