@@ -217,7 +217,10 @@
 
   <div class="card" id="refCard">
     <div class="card-title">🖼️ 商品图（可上传多张同一商品的不同角度）</div>
-    <!-- Task 3 fills here -->
+    <div class="ref-list" id="refList">
+      <button class="upload-btn" id="uploadBtn">+ 上传</button>
+      <input type="file" id="refFileInput" accept="image/*" multiple hidden>
+    </div>
   </div>
 
   <div class="card" id="descCard">
@@ -308,10 +311,63 @@
     });
   }
 
+  // ===== Reference Images =====
+  function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleRefUpload(event) {
+    const files = Array.from(event.target.files);
+    for (const f of files) {
+      try {
+        const url = await readFileAsDataURL(f);
+        state.refImages.push(url);
+      } catch (e) {
+        console.warn('read file failed:', e);
+      }
+    }
+    event.target.value = '';
+    renderRefList();
+  }
+
+  function removeRef(idx) {
+    state.refImages.splice(idx, 1);
+    renderRefList();
+  }
+
+  function renderRefList() {
+    const list = $('refList');
+    // remove existing thumbs but keep upload button & file input
+    list.querySelectorAll('.ref-thumb').forEach(el => el.remove());
+    const uploadBtn = $('uploadBtn');
+    state.refImages.forEach((url, i) => {
+      const div = document.createElement('div');
+      div.className = 'ref-thumb';
+      div.innerHTML = `
+        <img src="${url}" onclick="zoomImg('${url.replace(/'/g, "\\'")}')">
+        <div class="label">#${i + 1}</div>
+        <button class="remove" data-idx="${i}">&times;</button>
+      `;
+      div.querySelector('.remove').addEventListener('click', () => removeRef(i));
+      list.insertBefore(div, uploadBtn);
+    });
+  }
+
+  function bindRefUploader() {
+    $('uploadBtn').addEventListener('click', () => $('refFileInput').click());
+    $('refFileInput').addEventListener('change', handleRefUpload);
+  }
+
   // ===== Init (filled by later tasks) =====
   window.addEventListener('DOMContentLoaded', () => {
     loadConfig();
     bindConfigPersistence();
+    bindRefUploader();
   });
 </script>
 </body>
