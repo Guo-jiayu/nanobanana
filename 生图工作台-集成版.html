@@ -1,0 +1,2075 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>生图工作台 · 集成版</title>
+<style>
+  /* === Global reset & base === */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1e293b; }
+
+  .app { display: flex; height: 100vh; overflow: hidden; }
+
+  /* ===== Sidebar ===== */
+  .sidebar {
+    width: 220px; flex-shrink: 0; background: #1e293b; color: #e2e8f0;
+    display: flex; flex-direction: column; transition: width 0.2s;
+  }
+  .sidebar.collapsed { width: 56px; }
+  .sidebar-header {
+    padding: 18px 20px; font-size: 16px; font-weight: 700; letter-spacing: 0.5px;
+    border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 10px;
+    white-space: nowrap; overflow: hidden;
+  }
+  .sidebar-header .logo { font-size: 20px; }
+  .sidebar.collapsed .sidebar-header .title { display: none; }
+
+  .nav { flex: 1; padding: 10px 0; display: flex; flex-direction: column; gap: 2px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 12px; padding: 12px 20px;
+    cursor: pointer; color: #cbd5e1; font-size: 14px; font-weight: 500;
+    border-left: 3px solid transparent; transition: all 0.15s; white-space: nowrap;
+  }
+  .nav-item:hover { background: #334155; color: #fff; }
+  .nav-item.active { background: #334155; color: #fff; border-left-color: #4f8cff; }
+  .nav-item .icon { font-size: 18px; width: 20px; text-align: center; flex-shrink: 0; }
+  .sidebar.collapsed .nav-item .label { display: none; }
+  .sidebar.collapsed .nav-item { padding: 12px 18px; }
+
+  .sidebar-footer {
+    padding: 12px 20px; border-top: 1px solid #334155; font-size: 12px; color: #64748b;
+    white-space: nowrap; overflow: hidden;
+  }
+  .toggle-btn {
+    background: transparent; border: 1px solid #475569; color: #cbd5e1;
+    padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px;
+  }
+  .toggle-btn:hover { background: #334155; }
+
+  /* ===== Content & sections ===== */
+  .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .tool-section { display: block; overflow-y: auto; height: 100%; flex: 1; }
+  .tool-section.hidden { display: none; }
+
+  /* ===== Shared keyframes ===== */
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ================================================================
+     Tool: 单张生图 (.tool-single)
+  ================================================================ */
+  .tool-single .container { max-width: 960px; margin: 0 auto; padding: 24px; }
+  .tool-single h1 { text-align: center; margin-bottom: 24px; font-size: 24px; color: #1a1a1a; }
+
+  .tool-single .card { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .tool-single .card-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #555; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+
+  .tool-single .form-row { display: flex; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+  .tool-single .form-group { display: flex; flex-direction: column; flex: 1; min-width: 200px; }
+  .tool-single .form-group.full { flex: 1 1 100%; }
+  .tool-single label { font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #555; }
+  .tool-single input, .tool-single select, .tool-single textarea {
+    padding: 8px 12px; border: 1px solid #d0d5dd; border-radius: 8px; font-size: 14px;
+    transition: border-color 0.2s; outline: none; font-family: inherit;
+  }
+  .tool-single input:focus, .tool-single select:focus, .tool-single textarea:focus { border-color: #4f8cff; box-shadow: 0 0 0 2px rgba(79,140,255,0.15); }
+  .tool-single textarea { resize: vertical; min-height: 60px; }
+
+  .tool-single .size-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tool-single .size-btn {
+    padding: 6px 16px; border: 2px solid #d0d5dd; border-radius: 8px; background: #fff;
+    cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; color: #555;
+  }
+  .tool-single .size-btn:hover { border-color: #4f8cff; color: #4f8cff; }
+  .tool-single .size-btn.active { border-color: #4f8cff; background: #4f8cff; color: #fff; }
+
+  .tool-single .btn-send {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 32px; background: #4f8cff; color: #fff; border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+  }
+  .tool-single .btn-send:hover { background: #3a6fd8; }
+  .tool-single .btn-send:disabled { background: #a0b4d0; cursor: not-allowed; }
+  .tool-single .btn-row { display: flex; gap: 12px; align-items: center; }
+
+  .tool-single .spinner { display: none; width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+
+  .tool-single .result-image { max-width: 100%; border-radius: 8px; border: 1px solid #e0e0e0; }
+  .tool-single .result-text { background: #f7f8fa; border-radius: 8px; padding: 16px; font-size: 14px; white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; border: 1px solid #e8e8e8; }
+  .tool-single .result-error { background: #fff0f0; border: 1px solid #ffcccc; color: #cc0000; border-radius: 8px; padding: 16px; font-size: 14px; }
+
+  .tool-single .history { display: flex; flex-direction: column; gap: 16px; }
+  .tool-single .history-item { border: 1px solid #e8e8e8; border-radius: 10px; padding: 16px; background: #fafbfc; }
+  .tool-single .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
+  .tool-single .history-tag { font-size: 12px; padding: 2px 10px; border-radius: 12px; background: #e8f0fe; color: #3a6fd8; font-weight: 600; }
+  .tool-single .history-time { font-size: 12px; color: #999; }
+  .tool-single .history-prompt { font-size: 13px; color: #666; margin-bottom: 10px; font-style: italic; }
+
+  .tool-single .download-btn {
+    display: inline-block; margin-top: 8px; padding: 4px 14px; font-size: 12px;
+    background: #52c41a; color: #fff; border: none; border-radius: 6px; cursor: pointer; text-decoration: none;
+  }
+  .tool-single .download-btn:hover { background: #3fad09; }
+
+  .tool-single .ref-images-area { margin-top: 8px; }
+  .tool-single .ref-images-list { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  .tool-single .ref-thumb-wrap {
+    position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden;
+    border: 2px solid #d0d5dd; flex-shrink: 0;
+  }
+  .tool-single .ref-thumb-wrap img { width: 100%; height: 100%; object-fit: cover; }
+  .tool-single .ref-thumb-remove {
+    position: absolute; top: 2px; right: 2px; width: 20px; height: 20px;
+    background: rgba(0,0,0,0.55); color: #fff; border: none; border-radius: 50%;
+    font-size: 14px; line-height: 20px; text-align: center; cursor: pointer;
+  }
+  .tool-single .ref-thumb-remove:hover { background: rgba(200,0,0,0.8); }
+
+  .tool-single .ref-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tool-single .ref-btn {
+    padding: 5px 14px; border: 1px dashed #aab; border-radius: 8px; background: #fafbfc;
+    cursor: pointer; font-size: 13px; color: #555; transition: all 0.15s;
+  }
+  .tool-single .ref-btn:hover { border-color: #4f8cff; color: #4f8cff; }
+
+  .tool-single .use-ref-btn {
+    display: inline-block; margin-top: 8px; margin-left: 8px; padding: 4px 14px; font-size: 12px;
+    background: #4f8cff; color: #fff; border: none; border-radius: 6px; cursor: pointer;
+  }
+  .tool-single .use-ref-btn:hover { background: #3a6fd8; }
+
+  .tool-single .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 100;
+    justify-content: center; align-items: center;
+  }
+  .tool-single .modal-overlay.show { display: flex; }
+  .tool-single .modal-box {
+    background: #fff; border-radius: 14px; padding: 24px; max-width: 600px; width: 90%;
+    max-height: 80vh; overflow-y: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+  }
+  .tool-single .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 14px; }
+  .tool-single .modal-grid { display: flex; gap: 10px; flex-wrap: wrap; }
+  .tool-single .modal-thumb {
+    width: 100px; height: 100px; border-radius: 8px; overflow: hidden; cursor: pointer;
+    border: 3px solid transparent; transition: border-color 0.15s; flex-shrink: 0;
+  }
+  .tool-single .modal-thumb:hover { border-color: #4f8cff; }
+  .tool-single .modal-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .tool-single .modal-empty { color: #999; font-size: 14px; padding: 20px 0; }
+  .tool-single .modal-close {
+    margin-top: 14px; padding: 6px 20px; background: #eee; border: none; border-radius: 8px;
+    cursor: pointer; font-size: 13px;
+  }
+  .tool-single .modal-close:hover { background: #ddd; }
+
+  /* ================================================================
+     Tool: 批量一对一生图 (.tool-batch)
+  ================================================================ */
+  .tool-batch {
+    --primary: #4f8cff;
+    --success: #52c41a;
+    --danger: #ff4d4f;
+    --bg: #f8fafc;
+    --card-bg: #ffffff;
+    --border: #e2e8f0;
+  }
+  .tool-batch .container { max-width: 1400px; margin: 0 auto; padding: 20px; padding-bottom: 100px; }
+  .tool-batch .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .tool-batch .card { background: var(--card-bg); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid var(--border); }
+  .tool-batch .card-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+  .tool-batch .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
+  .tool-batch .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .tool-batch label { font-size: 13px; font-weight: 600; color: #64748b; }
+  .tool-batch input, .tool-batch select, .tool-batch textarea {
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; outline: none; transition: border 0.2s;
+  }
+  .tool-batch input:focus, .tool-batch select:focus, .tool-batch textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.1); }
+
+  .tool-batch .upload-section { margin-bottom: 24px; }
+  .tool-batch .upload-box {
+    border: 2px dashed #cbd5e1; border-radius: 12px; padding: 30px; text-align: center; cursor: pointer; background: #fff; transition: all 0.2s;
+  }
+  .tool-batch .upload-box:hover { border-color: var(--primary); background: #f0f7ff; }
+  .tool-batch .upload-box i { font-style: normal; font-size: 24px; display: block; margin-bottom: 8px; }
+  .tool-batch .upload-box span { font-weight: 600; color: #475569; }
+
+  .tool-batch .batch-list { display: flex; flex-direction: column; gap: 12px; }
+  .tool-batch .task-card {
+    display: grid; grid-template-columns: 150px 40px 1fr 150px;
+    align-items: center; gap: 20px; padding: 16px; background: #fff; border-radius: 12px;
+    border: 1px solid var(--border); transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .tool-batch .task-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+
+  .tool-batch .img-slot {
+    width: 150px; height: 150px; background: #f1f5f9; border: 2px solid #e2e8f0; border-radius: 8px;
+    position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  }
+  .tool-batch .img-slot img { width: 100%; height: 100%; object-fit: contain; }
+  .tool-batch .img-slot .label { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); color: #fff; font-size: 10px; text-align: center; padding: 2px 0; pointer-events: none; }
+  .tool-batch .img-slot .remove { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; background: rgba(255,255,255,0.8); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer; color: var(--danger); }
+
+  .tool-batch .result-area { height: 150px; background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative; }
+  .tool-batch .result-area img { height: 100%; width: 100%; object-fit: contain; cursor: zoom-in; }
+  .tool-batch .result-area .error-text { font-size: 11px; color: var(--danger); padding: 8px; word-break: break-all; }
+
+  .tool-batch .status-badge { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; }
+  .tool-batch .status-wait { background: #f1f5f9; color: #64748b; }
+  .tool-batch .status-running { background: #e0f2fe; color: #0369a1; }
+  .tool-batch .status-done { background: #dcfce7; color: #15803d; }
+  .tool-batch .status-error { background: #fee2e2; color: #b91c1c; }
+
+  .tool-batch .bottom-bar {
+    position: sticky; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid var(--border);
+    padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; z-index: 100;
+  }
+  .tool-batch .stats { font-size: 14px; color: #64748b; font-weight: 500; }
+  .tool-batch .btn {
+    padding: 10px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .tool-batch .btn-primary { background: var(--primary); color: #fff; }
+  .tool-batch .btn-primary:hover { background: #3b82f6; }
+  .tool-batch .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+  .tool-batch .btn-ghost { background: transparent; border: 1px solid var(--border); color: #475569; }
+  .tool-batch .btn-ghost:hover { background: #f1f5f9; }
+  .tool-batch .btn-danger { background: #fee2e2; color: #b91c1c; }
+
+  .tool-batch .loader { border: 2px solid #f3f3f3; border-top: 2px solid var(--primary); border-radius: 50%; width: 14px; height: 14px; animation: spin 0.8s linear infinite; }
+
+  .tool-batch .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; align-items: center; justify-content: center; padding: 40px; cursor: zoom-out; }
+  .tool-batch .modal.show { display: flex; }
+  .tool-batch .modal img { max-width: 100%; max-height: 100%; border-radius: 4px; }
+
+  /* ================================================================
+     Tool: 电商详情图 (.tool-detail)
+  ================================================================ */
+  .tool-detail .container { max-width: 1200px; margin: 0 auto; padding: 20px; padding-bottom: 80px; }
+  .tool-detail .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .tool-detail .header h1 { font-size: 22px; font-weight: 700; }
+  .tool-detail .header-actions { display: flex; gap: 10px; }
+
+  .tool-detail .card {
+    background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;
+  }
+  .tool-detail .card-title {
+    font-size: 16px; font-weight: 700; margin-bottom: 14px;
+    border-bottom: 1px solid #eee; padding-bottom: 8px;
+  }
+
+  .tool-detail .form-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;
+  }
+  .tool-detail .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .tool-detail .form-group.span2 { grid-column: span 2; }
+  .tool-detail label { font-size: 13px; font-weight: 600; color: #64748b; }
+  .tool-detail input, .tool-detail select, .tool-detail textarea {
+    padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px;
+    font-size: 14px; outline: none; font-family: inherit;
+    transition: border-color 0.15s;
+  }
+  .tool-detail input:focus, .tool-detail select:focus, .tool-detail textarea:focus {
+    border-color: #4f8cff; box-shadow: 0 0 0 3px rgba(79,140,255,0.12);
+  }
+  .tool-detail textarea { resize: vertical; min-height: 100px; }
+
+  .tool-detail .btn {
+    padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer;
+    font-size: 14px; font-weight: 600; transition: background 0.15s;
+  }
+  .tool-detail .btn-primary { background: #4f8cff; color: #fff; }
+  .tool-detail .btn-primary:hover { background: #3a6fd8; }
+  .tool-detail .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+  .tool-detail .btn-ghost { background: #f1f5f9; color: #475569; }
+  .tool-detail .btn-ghost:hover { background: #e2e8f0; }
+  .tool-detail .btn-danger-ghost { background: #fee2e2; color: #b91c1c; }
+
+  .tool-detail .bottom-bar {
+    position: sticky; bottom: 0; left: 0; right: 0; background: #fff;
+    border-top: 1px solid #e2e8f0; padding: 12px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+    z-index: 100; box-shadow: 0 -2px 6px rgba(0,0,0,0.04);
+  }
+  #detail-statusText { font-size: 14px; color: #475569; }
+
+  .tool-detail .banner {
+    padding: 12px 16px; border-radius: 8px; margin-bottom: 14px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .tool-detail .banner-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .tool-detail .banner-red { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+  .tool-detail .banner-yellow { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+  .tool-detail .banner pre {
+    margin-top: 8px; background: rgba(0,0,0,0.04); padding: 10px; border-radius: 6px;
+    font-size: 12px; max-height: 200px; overflow: auto; white-space: pre-wrap;
+    word-break: break-all; font-family: ui-monospace, monospace;
+  }
+  .tool-detail .banner-btn {
+    padding: 4px 12px; font-size: 12px; background: #fff; border: 1px solid currentColor;
+    border-radius: 6px; cursor: pointer; color: inherit; font-weight: 600;
+  }
+
+  .tool-detail .ref-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+  .tool-detail .ref-thumb {
+    position: relative; width: 90px; height: 90px; border-radius: 8px; overflow: hidden;
+    border: 2px solid #cbd5e1;
+  }
+  .tool-detail .ref-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .tool-detail .ref-thumb .label {
+    position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6);
+    color: #fff; font-size: 11px; text-align: center; padding: 1px 0;
+  }
+  .tool-detail .ref-thumb .remove {
+    position: absolute; top: 2px; right: 2px; width: 20px; height: 20px;
+    background: rgba(0,0,0,0.55); color: #fff; border: none; border-radius: 50%;
+    font-size: 14px; line-height: 18px; cursor: pointer;
+  }
+  .tool-detail .upload-btn {
+    width: 90px; height: 90px; border: 2px dashed #94a3b8; border-radius: 8px;
+    background: #f8fafc; color: #475569; font-size: 13px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tool-detail .upload-btn:hover { border-color: #4f8cff; color: #4f8cff; }
+
+  .tool-detail .result-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px;
+  }
+  .tool-detail .result-card {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  .tool-detail .result-card .media {
+    aspect-ratio: 1; background: #e2e8f0; display: flex; align-items: center;
+    justify-content: center; color: #94a3b8; font-size: 13px; position: relative;
+  }
+  .tool-detail .result-card .media img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
+  .tool-detail .result-card .media .err-text {
+    padding: 8px; font-size: 11px; color: #b91c1c; word-break: break-all;
+  }
+  .tool-detail .result-card .actions { display: flex; gap: 6px; padding: 8px; }
+  .tool-detail .result-card .actions .btn { flex: 1; padding: 5px 8px; font-size: 12px; }
+  .tool-detail .spinner {
+    width: 24px; height: 24px; border: 3px solid #cbd5e1;
+    border-top-color: #4f8cff; border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+
+  .tool-detail .modal {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+    z-index: 200; cursor: zoom-out; padding: 40px;
+  }
+  .tool-detail .modal.show { display: flex; align-items: center; justify-content: center; }
+  .tool-detail .modal img { max-width: 100%; max-height: 100%; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span class="logo">🎨</span>
+      <span class="title">生图工作台</span>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="nav-item active" data-target="single">
+        <span class="icon">🖼️</span>
+        <span class="label">单张生图</span>
+      </div>
+      <div class="nav-item" data-target="batch">
+        <span class="icon">📦</span>
+        <span class="label">批量一对一生图</span>
+      </div>
+      <div class="nav-item" data-target="detail">
+        <span class="icon">🛍️</span>
+        <span class="label">电商详情图</span>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="toggle-btn" onclick="toggleSidebar()">≡ 折叠</button>
+    </div>
+  </aside>
+
+  <main class="content">
+    <!-- ============================================================
+         Section: 单张生图
+    ============================================================ -->
+    <section class="tool-section tool-single" id="section-single">
+      <div class="container">
+        <h1>SparkCode 文生图</h1>
+
+        <!-- Config -->
+        <div class="card">
+          <div class="card-title">API 配置</div>
+          <div class="form-row">
+            <div class="form-group" style="flex:2">
+              <label>API Key</label>
+              <input id="single-apiKey" type="password" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+            </div>
+            <div class="form-group" style="flex:2">
+              <label>Model</label>
+              <input id="single-model" value="gemini-3.1-flash-image-preview" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Image Config -->
+        <div class="card">
+          <div class="card-title">图片配置</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>图片尺寸</label>
+              <div class="size-btns" id="single-sizeBtns">
+                <button class="size-btn active" data-size="">默认</button>
+                <button class="size-btn" data-size="512">512</button>
+                <button class="size-btn" data-size="1K">1K</button>
+                <button class="size-btn" data-size="2K">2K</button>
+                <button class="size-btn" data-size="4K">4K</button>
+              </div>
+            </div>
+            <div class="form-group" style="flex: 0 0 180px">
+              <label>宽高比 (可选)</label>
+              <select id="single-aspectRatio">
+                <option value="">不指定</option>
+                <option value="1:1">1:1</option>
+                <option value="16:9">16:9</option>
+                <option value="9:16">9:16</option>
+                <option value="4:3">4:3</option>
+                <option value="3:4">3:4</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reference Images -->
+        <div class="card">
+          <div class="card-title">参考图 (图生图，可选)</div>
+          <div class="ref-actions">
+            <label class="ref-btn" id="single-uploadRefBtn">
+              + 本地上传
+              <input type="file" id="single-refFileInput" accept="image/*" multiple hidden />
+            </label>
+            <button class="ref-btn" id="single-pickHistoryBtn">+ 从历史结果选取</button>
+          </div>
+          <div class="ref-images-list" id="single-refImagesList"></div>
+        </div>
+
+        <!-- Prompt -->
+        <div class="card">
+          <div class="card-title">提示词</div>
+          <div class="form-row">
+            <div class="form-group full">
+              <textarea id="single-prompt" rows="3" placeholder="画一只可爱的橘猫，白色背景">画一只可爱的橘猫，白色背景</textarea>
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn-send" id="single-sendBtn" onclick="single_sendRequest()">
+              <span class="spinner" id="single-spinner"></span>
+              发送请求
+            </button>
+            <span id="single-statusText" style="font-size:13px;color:#999;"></span>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div class="card" id="single-resultCard" style="display:none;">
+          <div class="card-title">结果</div>
+          <div class="history" id="single-history"></div>
+        </div>
+      </div>
+
+      <!-- Modal: pick from history -->
+      <div class="modal-overlay" id="single-historyModal">
+        <div class="modal-box">
+          <div class="modal-title">选择历史结果图片</div>
+          <div class="modal-grid" id="single-historyModalGrid"></div>
+          <button class="modal-close" onclick="single_closeHistoryModal()">关闭</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         Section: 批量一对一生图
+    ============================================================ -->
+    <section class="tool-section tool-batch hidden" id="section-batch">
+      <div class="container">
+        <div class="header">
+          <h1>Gemini 批量生成系统 <small style="font-weight: normal; font-size: 0.6em; color: #64748b;">(单图版)</small></h1>
+          <div style="display: flex; gap: 12px;">
+            <button class="btn btn-ghost" onclick="batch_downloadAll()">📦 批量下载</button>
+            <button class="btn btn-ghost btn-danger" onclick="batch_clearData()">🗑️ 清空工作区</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">⚙️ 核心配置</div>
+          <div class="form-grid">
+            <div class="form-group" style="grid-column: span 2;">
+              <label>API Key (持久化存储)</label>
+              <input id="batch-apiKey" type="password" placeholder="sk-..." onchange="batch_saveConfig()">
+            </div>
+            <div class="form-group">
+              <label>模型 (Model)</label>
+              <input id="batch-model" value="gemini-3.1-flash-image-preview" onchange="batch_saveConfig()">
+            </div>
+            <div class="form-group">
+              <label>并发数 (Concurrency)</label>
+              <select id="batch-concurrency" onchange="batch_saveConfig()">
+                <option value="1">1 (最稳)</option>
+                <option value="2">2 (推荐)</option>
+                <option value="4" selected>4 (极速)</option>
+                <option value="8">8 (高性能)</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>生成尺寸 (Size)</label>
+              <select id="batch-imageSize" onchange="batch_saveConfig()">
+                <option value="">不指定 (默认)</option>
+                <option value="512">512</option>
+                <option value="1K">1K</option>
+                <option value="2K">2K</option>
+                <option value="4K">4K</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>宽高比 (Aspect Ratio)</label>
+              <select id="batch-aspectRatio" onchange="batch_saveConfig()">
+                <option value="">不指定 (默认)</option>
+                <option value="1:1">1:1 Square</option>
+                <option value="16:9">16:9 Cinematic</option>
+                <option value="9:16">9:16 Portrait</option>
+                <option value="4:3">4:3 Standard</option>
+                <option value="3:4">3:4 Portrait</option>
+              </select>
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label>通用提示词 (Prompt) — 所有任务共享</label>
+              <textarea id="batch-prompt" rows="2" onchange="batch_saveConfig()">基于参考图，生成一张高质量的商拍图，保持光影、构图和氛围。</textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="upload-section">
+          <div class="upload-box" onclick="document.getElementById('batch-refInput').click()">
+            <i>🖼️</i>
+            <span>批量上传【参考图】— 每张图生成一个独立任务</span>
+            <input type="file" id="batch-refInput" multiple accept="image/*" hidden onchange="batch_handleFileUpload(event)">
+          </div>
+        </div>
+
+        <div class="batch-list" id="batch-batchList"></div>
+      </div>
+
+      <div class="bottom-bar">
+        <div class="stats" id="batch-stats">就绪任务: 0 / 总计: 0</div>
+        <div style="display: flex; gap: 16px;">
+          <button id="batch-startBtn" class="btn btn-primary" onclick="batch_startBatchProcessing()">🚀 开始批量生成</button>
+        </div>
+      </div>
+
+      <div class="modal" id="batch-previewModal" onclick="this.classList.remove('show')">
+        <img id="batch-modalImg" src="">
+      </div>
+    </section>
+
+    <!-- ============================================================
+         Section: 电商详情图
+    ============================================================ -->
+    <section class="tool-section tool-detail hidden" id="section-detail">
+      <div class="container">
+        <div class="header">
+          <h1>🛍️ 电商详情图 · 一键生成</h1>
+          <div class="header-actions">
+            <button class="btn btn-ghost" id="detail-clearBtn">🗑️ 清空</button>
+            <button class="btn btn-ghost" id="detail-downloadAllBtn">📦 批量下载</button>
+          </div>
+        </div>
+
+        <div id="detail-errorBanner"></div>
+
+        <div class="card" id="detail-configCard">
+          <div class="card-title">⚙️ 配置</div>
+          <div class="form-grid">
+            <div class="form-group span2">
+              <label>LLM API Key（用于生成提示词）</label>
+              <input id="detail-llmApiKey" type="password" placeholder="sk-...">
+            </div>
+            <div class="form-group span2">
+              <label>图像 API Key（用于文生图）</label>
+              <input id="detail-imageApiKey" type="password" placeholder="sk-...">
+            </div>
+            <div class="form-group">
+              <label>LLM 模型</label>
+              <input id="detail-llmModel" placeholder="gemini-2.5-pro">
+            </div>
+            <div class="form-group">
+              <label>图像模型</label>
+              <input id="detail-imageModel" value="gemini-3.1-flash-image-preview">
+            </div>
+            <div class="form-group">
+              <label>数量</label>
+              <select id="detail-count">
+                <option value="auto">自动（3-8 张）</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+                <option value="9">9</option>
+                <option value="10">10</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>并发</label>
+              <select id="detail-concurrency">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="4" selected>4</option>
+                <option value="8">8</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>强制尺寸（留空 = LLM 决定）</label>
+              <select id="detail-forceSize">
+                <option value="">— 留空 —</option>
+                <option value="512">512</option>
+                <option value="1K">1K</option>
+                <option value="2K">2K</option>
+                <option value="4K">4K</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>强制比例（留空 = LLM 决定）</label>
+              <select id="detail-forceAspect">
+                <option value="">— 留空 —</option>
+                <option value="1:1">1:1</option>
+                <option value="16:9">16:9</option>
+                <option value="9:16">9:16</option>
+                <option value="4:3">4:3</option>
+                <option value="3:4">3:4</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="detail-refCard">
+          <div class="card-title">🖼️ 商品图（可上传多张同一商品的不同角度）</div>
+          <div class="ref-list" id="detail-refList">
+            <button class="upload-btn" id="detail-uploadBtn">+ 上传</button>
+            <input type="file" id="detail-refFileInput" accept="image/*" multiple hidden>
+          </div>
+        </div>
+
+        <div class="card" id="detail-descCard">
+          <div class="card-title">📝 商品介绍</div>
+          <textarea id="detail-productDescription" rows="6" placeholder="例如：这是一款专为户外露营设计的便携式折叠桌，铝合金材质，承重 30kg，10 秒展开，附带收纳袋……"></textarea>
+        </div>
+
+        <div class="card" id="detail-resultCard">
+          <div class="card-title">🎨 生成结果</div>
+          <div class="result-grid" id="detail-resultGrid"></div>
+        </div>
+      </div>
+
+      <div class="bottom-bar">
+        <div id="detail-statusText">就绪</div>
+        <button class="btn btn-primary" id="detail-generateBtn">🚀 一键生成详情图</button>
+      </div>
+
+      <div class="modal" id="detail-zoomModal"><img id="detail-zoomImg" src=""></div>
+    </section>
+  </main>
+</div>
+
+<!-- ================================================================
+     Shell: Tab switching
+================================================================ -->
+<script>
+(function() {
+  'use strict';
+  const navItems = document.querySelectorAll('.nav-item');
+  const sections = {
+    single: document.getElementById('section-single'),
+    batch:  document.getElementById('section-batch'),
+    detail: document.getElementById('section-detail')
+  };
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const target = item.dataset.target;
+      navItems.forEach(n => n.classList.toggle('active', n === item));
+      Object.keys(sections).forEach(k => {
+        sections[k].classList.toggle('hidden', k !== target);
+      });
+    });
+  });
+  window.toggleSidebar = function() {
+    document.getElementById('sidebar').classList.toggle('collapsed');
+  };
+})();
+</script>
+
+<!-- ================================================================
+     Tool: 单张生图 — IIFE
+================================================================ -->
+<script>
+(function() {
+  'use strict';
+
+  const API_URL = 'https://sparkcode.top/v1/chat/completions';
+  const MAX_TOKENS = 4096;
+
+  // ---- State ----
+  let refImages = [];
+  let historyImages = [];
+
+  // ---- Size buttons ----
+  document.getElementById('single-sizeBtns').addEventListener('click', e => {
+    const btn = e.target.closest('.size-btn');
+    if (!btn) return;
+    document.querySelectorAll('.tool-single .size-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+
+  function getSelectedSize() {
+    const active = document.querySelector('.tool-single .size-btn.active');
+    return active ? active.dataset.size : '';
+  }
+
+  function getSizeLabel() {
+    const size = getSelectedSize();
+    const aspect = document.getElementById('single-aspectRatio').value;
+    let label = size || '默认';
+    if (aspect) label += ' / ' + aspect;
+    return label;
+  }
+
+  // ---- Reference image management ----
+  document.getElementById('single-refFileInput').addEventListener('change', e => {
+    Array.from(e.target.files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = ev => { addRefImage(ev.target.result); };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  });
+
+  document.getElementById('single-pickHistoryBtn').addEventListener('click', openHistoryModal);
+
+  function addRefImage(dataUrl) {
+    refImages.push(dataUrl);
+    renderRefImages();
+  }
+
+  function removeRefImage(idx) {
+    refImages.splice(idx, 1);
+    renderRefImages();
+  }
+
+  function renderRefImages() {
+    const list = document.getElementById('single-refImagesList');
+    list.innerHTML = '';
+    refImages.forEach((url, i) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'ref-thumb-wrap';
+      wrap.innerHTML = `<img src="${url}" /><button class="ref-thumb-remove" title="移除">&times;</button>`;
+      wrap.querySelector('.ref-thumb-remove').addEventListener('click', () => removeRefImage(i));
+      list.appendChild(wrap);
+    });
+  }
+
+  // ---- History modal ----
+  function openHistoryModal() {
+    const grid = document.getElementById('single-historyModalGrid');
+    grid.innerHTML = '';
+    if (historyImages.length === 0) {
+      grid.innerHTML = '<div class="modal-empty">暂无历史图片</div>';
+    } else {
+      historyImages.forEach(url => {
+        const thumb = document.createElement('div');
+        thumb.className = 'modal-thumb';
+        thumb.innerHTML = `<img src="${url}" />`;
+        thumb.addEventListener('click', () => {
+          addRefImage(url);
+          closeHistoryModal();
+        });
+        grid.appendChild(thumb);
+      });
+    }
+    document.getElementById('single-historyModal').classList.add('show');
+  }
+
+  function closeHistoryModal() {
+    document.getElementById('single-historyModal').classList.remove('show');
+  }
+
+  document.getElementById('single-historyModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeHistoryModal();
+  });
+
+  // ---- Use-as-ref from history item ----
+  function useAsRef(dataUrl) {
+    addRefImage(dataUrl);
+    document.getElementById('section-single').scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ---- Build request ----
+  function buildRequestBody() {
+    const model = document.getElementById('single-model').value.trim();
+    const prompt = document.getElementById('single-prompt').value.trim();
+    const size = getSelectedSize();
+    const aspect = document.getElementById('single-aspectRatio').value;
+
+    let content;
+    if (refImages.length > 0) {
+      content = [];
+      refImages.forEach(dataUrl => {
+        content.push({ type: 'image_url', image_url: { url: dataUrl } });
+      });
+      content.push({ type: 'text', text: prompt });
+    } else {
+      content = prompt;
+    }
+
+    const body = {
+      model,
+      messages: [{ role: 'user', content }],
+      max_tokens: MAX_TOKENS
+    };
+
+    if (size || aspect) {
+      const imageConfig = {};
+      if (size) imageConfig.image_size = size;
+      if (aspect) imageConfig.aspect_ratio = aspect;
+      body.extra_body = { google: { image_config: imageConfig } };
+    }
+
+    return body;
+  }
+
+  // ---- Send request ----
+  async function sendRequest() {
+    const apiKey = document.getElementById('single-apiKey').value.trim();
+    if (!apiKey) { alert('请填写 API Key'); return; }
+
+    const btn = document.getElementById('single-sendBtn');
+    const spinner = document.getElementById('single-spinner');
+    const statusText = document.getElementById('single-statusText');
+
+    btn.disabled = true;
+    spinner.style.display = 'inline-block';
+    statusText.textContent = '请求中…';
+
+    const body = buildRequestBody();
+    const startTime = Date.now();
+
+    try {
+      const resp = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + apiKey
+        },
+        body: JSON.stringify(body)
+      });
+
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      const data = await resp.json();
+      statusText.textContent = `完成 (${elapsed}s)`;
+      addResult(data, body, elapsed);
+    } catch (err) {
+      statusText.textContent = '请求失败';
+      addError(err.message);
+    } finally {
+      btn.disabled = false;
+      spinner.style.display = 'none';
+    }
+  }
+
+  // ---- Extract image data url from response ----
+  function extractImageDataUrl(data) {
+    const content = data.choices?.[0]?.message?.content || '';
+
+    const imgMatch = content.match(/!\[.*?\]\(data:image\/(png|jpeg|webp|gif);base64,([^)]+)\)/);
+    if (imgMatch) return `data:image/${imgMatch[1]};base64,${imgMatch[2]}`;
+
+    const rawMatch = content.match(/^data:image\/(png|jpeg|webp|gif);base64,(.+)$/s);
+    if (rawMatch) return `data:image/${rawMatch[1]};base64,${rawMatch[2]}`;
+
+    const parts = data.choices?.[0]?.message?.parts || [];
+    const inlinePart = parts.find(p => p.inline_data);
+    if (inlinePart) {
+      const mime = inlinePart.inline_data.mime_type || 'image/png';
+      return `data:${mime};base64,${inlinePart.inline_data.data}`;
+    }
+
+    return null;
+  }
+
+  // ---- Display results ----
+  function addResult(data, reqBody, elapsed) {
+    const card = document.getElementById('single-resultCard');
+    card.style.display = '';
+    const history = document.getElementById('single-history');
+    const item = document.createElement('div');
+    item.className = 'history-item';
+
+    const now = new Date().toLocaleTimeString('zh-CN');
+    const sizeLabel = getSizeLabel();
+    const promptContent = reqBody.messages[0].content;
+    const promptText = typeof promptContent === 'string'
+      ? promptContent
+      : (promptContent.find(p => p.type === 'text')?.text || '');
+    const hasRef = typeof promptContent !== 'string';
+
+    if (data.error) {
+      item.innerHTML = `
+        <div class="history-header">
+          <span class="history-tag">${sizeLabel}</span>
+          ${hasRef ? '<span class="history-tag" style="background:#fff3e0;color:#e65100;">图生图</span>' : ''}
+          <span class="history-time">${now} · ${elapsed}s</span>
+        </div>
+        <div class="history-prompt">${escapeHtml(promptText)}</div>
+        <div class="result-error">Error: ${escapeHtml(JSON.stringify(data.error, null, 2))}</div>
+      `;
+    } else {
+      const content = data.choices?.[0]?.message?.content || '';
+      const dataUrl = extractImageDataUrl(data);
+
+      let mediaHtml = '';
+      if (dataUrl) {
+        historyImages.push(dataUrl);
+        const idx = historyImages.length - 1;
+        mediaHtml = `<img class="result-image" src="${dataUrl}" />`
+          + downloadLink(dataUrl)
+          + `<button class="use-ref-btn" onclick="single_useAsRef(single_historyImages[${idx}])">用作参考图</button>`;
+      } else {
+        mediaHtml = `<div class="result-text">${escapeHtml(content)}</div>`;
+      }
+
+      const contentLen = content.length;
+      item.innerHTML = `
+        <div class="history-header">
+          <span class="history-tag">${sizeLabel}</span>
+          ${hasRef ? '<span class="history-tag" style="background:#fff3e0;color:#e65100;">图生图</span>' : ''}
+          <span class="history-time">${now} · ${elapsed}s · content长度: ${contentLen}</span>
+        </div>
+        <div class="history-prompt">${escapeHtml(promptText)}</div>
+        ${mediaHtml}
+      `;
+    }
+
+    history.prepend(item);
+  }
+
+  function addError(msg) {
+    const card = document.getElementById('single-resultCard');
+    card.style.display = '';
+    const history = document.getElementById('single-history');
+    const item = document.createElement('div');
+    item.className = 'history-item';
+    const now = new Date().toLocaleTimeString('zh-CN');
+    item.innerHTML = `
+      <div class="history-header">
+        <span class="history-tag">${getSizeLabel()}</span>
+        <span class="history-time">${now}</span>
+      </div>
+      <div class="result-error">网络错误: ${escapeHtml(msg)}</div>
+    `;
+    history.prepend(item);
+  }
+
+  function downloadLink(dataUrl) {
+    return `<a class="download-btn" href="${dataUrl}" download="image_${Date.now()}.png">下载图片</a>`;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // Expose globals for inline onclick
+  window.single_sendRequest       = sendRequest;
+  window.single_closeHistoryModal = closeHistoryModal;
+  window.single_useAsRef          = useAsRef;
+  window.single_historyImages     = historyImages;  // expose array reference for inline onclick index access
+
+})();
+</script>
+
+<!-- ================================================================
+     Tool: 批量一对一生图 — IIFE
+================================================================ -->
+<script>
+(function() {
+  'use strict';
+
+  const API_URL = 'https://sparkcode.top/v1/chat/completions';
+  const DB_NAME = 'GeminiBatchGenSingleDB';
+  const STORE_NAME = 'tasks_v1';
+
+  let db;
+  let tasks = [];
+  let isProcessing = false;
+
+  async function initDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, 1);
+      request.onupgradeneeded = e => {
+        const dbInst = e.target.result;
+        if (!dbInst.objectStoreNames.contains(STORE_NAME)) {
+          dbInst.createObjectStore(STORE_NAME, { keyPath: 'id' });
+        }
+      };
+      request.onsuccess = e => { db = e.target.result; resolve(); };
+      request.onerror = e => reject(e);
+    });
+  }
+
+  async function dbSaveTask(task) {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put(JSON.parse(JSON.stringify(task)));
+    return new Promise(res => tx.oncomplete = res);
+  }
+
+  async function dbDeleteTask(id) {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).delete(id);
+    return new Promise(res => tx.oncomplete = res);
+  }
+
+  async function dbLoadTasks() {
+    return new Promise(res => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const request = tx.objectStore(STORE_NAME).getAll();
+      request.onsuccess = () => res(request.result || []);
+    });
+  }
+
+  window.addEventListener('load', async () => {
+    await initDB();
+    loadConfig();
+    tasks = await dbLoadTasks();
+    tasks.sort((a, b) => a.order - b.order);
+    renderList();
+  });
+
+  function saveConfig() {
+    const config = {
+      apiKey:      document.getElementById('batch-apiKey').value,
+      model:       document.getElementById('batch-model').value,
+      concurrency: document.getElementById('batch-concurrency').value,
+      imageSize:   document.getElementById('batch-imageSize').value,
+      aspectRatio: document.getElementById('batch-aspectRatio').value,
+      prompt:      document.getElementById('batch-prompt').value
+    };
+    localStorage.setItem('gemini_batch_single_config', JSON.stringify(config));
+  }
+
+  function loadConfig() {
+    const saved = localStorage.getItem('gemini_batch_single_config');
+    if (saved) {
+      const c = JSON.parse(saved);
+      if (c.apiKey)      document.getElementById('batch-apiKey').value = c.apiKey;
+      if (c.model)       document.getElementById('batch-model').value = c.model;
+      if (c.concurrency) document.getElementById('batch-concurrency').value = c.concurrency;
+      if (c.imageSize)   document.getElementById('batch-imageSize').value = c.imageSize;
+      if (c.aspectRatio) document.getElementById('batch-aspectRatio').value = c.aspectRatio;
+      if (c.prompt)      document.getElementById('batch-prompt').value = c.prompt;
+    }
+  }
+
+  async function handleFileUpload(event) {
+    const files = Array.from(event.target.files);
+    if (!files.length) return;
+
+    for (const file of files) {
+      const dataUrl = await readFileAsDataURL(file);
+      const task = {
+        id: Date.now() + Math.random(),
+        ref: dataUrl,
+        name: file.name,
+        status: 'wait',
+        result: null,
+        error: null,
+        order: tasks.length
+      };
+      tasks.push(task);
+      await dbSaveTask(task);
+    }
+    renderList();
+    event.target.value = '';
+  }
+
+  function readFileAsDataURL(file) {
+    return new Promise(res => {
+      const reader = new FileReader();
+      reader.onload = () => res(reader.result);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function renderList() {
+    const container = document.getElementById('batch-batchList');
+    container.innerHTML = tasks.length === 0
+      ? '<div style="text-align:center;color:#94a3b8;padding:40px;">暂无任务，请上传参考图</div>'
+      : '';
+
+    tasks.forEach((task, index) => {
+      const div = document.createElement('div');
+      div.className = 'task-card';
+      div.id = `batch-task-${task.id}`;
+
+      div.innerHTML = `
+        <div class="img-slot">
+          ${task.ref
+            ? `<img src="${task.ref}" onclick="batch_zoomImg(this.src)"><div class="remove" onclick="batch_deleteTask(${task.id})">×</div>`
+            : '<span style="color:#cbd5e1;font-size:12px">无图</span>'}
+          <div class="label">参考图 #${index + 1}</div>
+        </div>
+
+        <div class="status-area">
+          <div class="status-badge status-${task.status}">
+            ${task.status === 'running' ? '<div class="loader"></div>' : ''}
+            <span>${getStatusLabel(task.status)}</span>
+          </div>
+        </div>
+
+        <div class="result-area">
+          ${task.result
+            ? `<img src="${task.result}" onclick="batch_zoomImg(this.src)">`
+            : (task.error ? `<div class="error-text">${task.error}</div>` : '')}
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button class="btn btn-ghost" style="padding:6px 12px; font-size:12px" onclick="batch_deleteTask(${task.id})">🗑️ 删除</button>
+          ${task.ref
+            ? `<button class="btn btn-ghost" style="padding:6px 12px; font-size:12px" ${task.status === 'running' ? 'disabled' : ''} onclick="batch_retryTask(${task.id})">🔄 ${task.status === 'done' ? '重试' : '生成'}</button>`
+            : ''}
+          ${task.result
+            ? `<button class="btn btn-primary" style="padding:6px 12px; font-size:12px" onclick="batch_downloadImg(batch_tasks[${index}].result, 'gen_${index + 1}.png')">💾 下载</button>`
+            : ''}
+        </div>
+      `;
+      container.appendChild(div);
+    });
+    updateStats();
+  }
+
+  async function retryTask(taskId) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || !task.ref) return alert('缺少参考图');
+
+    const apiKey = document.getElementById('batch-apiKey').value.trim();
+    if (!apiKey) return alert('请输入 API Key');
+
+    const config = {
+      model:  document.getElementById('batch-model').value,
+      size:   document.getElementById('batch-imageSize').value,
+      aspect: document.getElementById('batch-aspectRatio').value,
+      prompt: document.getElementById('batch-prompt').value
+    };
+
+    try {
+      task.status = 'running';
+      task.error = null;
+      renderTaskStatus(task);
+      const result = await callGeminiAPI(apiKey, config, task.ref);
+      task.result = result;
+      task.status = 'done';
+    } catch (e) {
+      task.status = 'error';
+      task.error = e.message;
+    }
+    await dbSaveTask(task);
+    renderList();
+  }
+
+  function getStatusLabel(s) {
+    return { wait: '等待中', running: '生成中', done: '已完成', error: '失败' }[s];
+  }
+
+  async function deleteTask(id) {
+    tasks = tasks.filter(t => t.id !== id);
+    await dbDeleteTask(id);
+    renderList();
+  }
+
+  async function clearData() {
+    if (!confirm('确定要清空所有任务吗？这将无法撤销。')) return;
+    tasks = [];
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).clear();
+    tx.oncomplete = () => renderList();
+  }
+
+  function updateStats() {
+    const ready = tasks.filter(t => t.ref && t.status === 'wait').length;
+    document.getElementById('batch-stats').textContent = `就绪任务: ${ready} / 总计: ${tasks.length}`;
+    document.getElementById('batch-startBtn').disabled = isProcessing || ready === 0;
+  }
+
+  async function startBatchProcessing() {
+    const apiKey = document.getElementById('batch-apiKey').value.trim();
+    if (!apiKey) return alert('请输入 API Key');
+
+    isProcessing = true;
+    updateStats();
+
+    const concurrency = parseInt(document.getElementById('batch-concurrency').value);
+    const queue = tasks.filter(t => t.ref && t.status === 'wait');
+
+    const config = {
+      model:  document.getElementById('batch-model').value,
+      size:   document.getElementById('batch-imageSize').value,
+      aspect: document.getElementById('batch-aspectRatio').value,
+      prompt: document.getElementById('batch-prompt').value
+    };
+
+    console.log(`[Batch] Starting ${queue.length} tasks with concurrency=${concurrency}`);
+
+    const MAX_RETRIES = 5;
+
+    const workers = Array(Math.min(concurrency, queue.length)).fill(0).map(async (_, workerIdx) => {
+      while (queue.length > 0) {
+        const task = queue.shift();
+        if (!task) continue;
+
+        const taskIdx = tasks.indexOf(task);
+        task.status = 'running';
+        task.error = null;
+        renderTaskStatus(task);
+
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          console.log(`[Worker ${workerIdx}] Task #${taskIdx + 1} attempt ${attempt}/${MAX_RETRIES}`);
+          try {
+            const result = await callGeminiAPI(apiKey, config, task.ref);
+            task.result = result;
+            task.status = 'done';
+            task.error = null;
+            break;
+          } catch (e) {
+            console.error(`[Worker ${workerIdx}] Task #${taskIdx + 1} attempt ${attempt} FAILED:`, e);
+            const isRetryable = e.message.includes('CONTENT_FILTER');
+            if (attempt < MAX_RETRIES && isRetryable) {
+              await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
+            } else {
+              task.status = 'error';
+              task.error = attempt > 1 ? `${attempt}次尝试均失败: ${e.message}` : e.message;
+              break;
+            }
+          }
+        }
+        await dbSaveTask(task);
+        renderTaskStatus(task);
+      }
+    });
+
+    await Promise.all(workers);
+    isProcessing = false;
+    renderList();
+    updateStats();
+  }
+
+  function renderTaskStatus(task) {
+    const el = document.getElementById(`batch-task-${task.id}`);
+    if (!el) return;
+
+    const badge = el.querySelector('.status-area');
+    badge.innerHTML = `<div class="status-badge status-${task.status}">
+      ${task.status === 'running' ? '<div class="loader"></div>' : ''}
+      <span>${getStatusLabel(task.status)}</span>
+    </div>`;
+
+    const resArea = el.querySelector('.result-area');
+    if (task.status === 'done' && task.result) {
+      resArea.innerHTML = `<img src="${task.result}" onclick="batch_zoomImg(this.src)">`;
+    } else if (task.status === 'error') {
+      resArea.innerHTML = `<div class="error-text">${task.error}</div>`;
+    }
+
+    const actionsDiv = el.querySelector('div:last-child');
+    if (actionsDiv) {
+      const index = tasks.indexOf(task);
+      actionsDiv.innerHTML = `
+        <button class="btn btn-ghost" style="padding:6px 12px; font-size:12px" onclick="batch_deleteTask(${task.id})">🗑️ 删除</button>
+        ${task.ref
+          ? `<button class="btn btn-ghost" style="padding:6px 12px; font-size:12px" ${task.status === 'running' ? 'disabled' : ''} onclick="batch_retryTask(${task.id})">🔄 ${task.status === 'done' ? '重试' : '生成'}</button>`
+          : ''}
+        ${task.result
+          ? `<button class="btn btn-primary" style="padding:6px 12px; font-size:12px" onclick="batch_downloadImg(batch_tasks[${index}].result, 'gen_${index + 1}.png')">💾 下载</button>`
+          : ''}
+      `;
+    }
+    updateStats();
+  }
+
+  async function callGeminiAPI(apiKey, config, refUrl) {
+    console.log('[API Call] model=', config.model, 'prompt=', config.prompt?.substring(0, 50));
+    const body = {
+      model: config.model,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: refUrl } },
+          { type: 'text', text: config.prompt }
+        ]
+      }],
+      max_tokens: 4096
+    };
+
+    const imageConfig = {};
+    if (config.size) imageConfig.image_size = config.size;
+    if (config.aspect) imageConfig.aspect_ratio = config.aspect;
+    if (Object.keys(imageConfig).length > 0) {
+      body.extra_body = { google: { image_config: imageConfig } };
+    }
+
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`HTTP ${res.status}: ${errText.substring(0, 200)}`);
+    }
+
+    const data = await res.json();
+    console.log('[API Response]', JSON.stringify(data).substring(0, 500));
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+
+    const message = data.choices?.[0]?.message;
+    if (!message) throw new Error('API 响应中没有 message 字段');
+
+    const finishReason = data.choices?.[0]?.finish_reason;
+    if (finishReason === 'content_filter') {
+      throw new Error('CONTENT_FILTER: 被内容安全过滤器拦截，将自动重试');
+    }
+
+    const content = message.content;
+
+    if (Array.isArray(content)) {
+      for (const part of content) {
+        if (part.type === 'image_url' && part.image_url?.url) return part.image_url.url;
+        if (part.inline_data) return `data:${part.inline_data.mime_type || 'image/png'};base64,${part.inline_data.data}`;
+        if (typeof part.text === 'string') {
+          const m = part.text.match(/data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+/);
+          if (m) return m[0];
+        }
+        if (typeof part === 'string') {
+          const m = part.match(/data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+/);
+          if (m) return m[0];
+        }
+      }
+    }
+
+    if (typeof content === 'string' && content.length > 0) {
+      const m = content.match(/data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+/);
+      if (m) return m[0];
+    }
+
+    const parts = message.parts || [];
+    for (const p of parts) {
+      if (p.inline_data) return `data:${p.inline_data.mime_type || 'image/png'};base64,${p.inline_data.data}`;
+    }
+
+    if (data.data?.[0]?.b64_json) return `data:image/png;base64,${data.data[0].b64_json}`;
+    if (data.data?.[0]?.url) return data.data[0].url;
+
+    const contentPreview = typeof content === 'string'
+      ? content.substring(0, 200)
+      : JSON.stringify(content)?.substring(0, 200);
+    throw new Error(`解析失败(content type=${typeof content}). 前100字: ${contentPreview?.substring(0, 100)}`);
+  }
+
+  function zoomImg(src) {
+    document.getElementById('batch-modalImg').src = src;
+    document.getElementById('batch-previewModal').classList.add('show');
+  }
+
+  function downloadImg(url, name) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+  }
+
+  function downloadAll() {
+    const done = tasks.filter(t => t.result);
+    if (!done.length) return alert('没有已完成的图片');
+    done.forEach((t, i) => {
+      setTimeout(() => downloadImg(t.result, `gemini_batch_${i + 1}.png`), i * 300);
+    });
+  }
+
+  // Expose globals for inline onclick
+  window.batch_saveConfig          = saveConfig;
+  window.batch_handleFileUpload    = handleFileUpload;
+  window.batch_startBatchProcessing = startBatchProcessing;
+  window.batch_downloadAll         = downloadAll;
+  window.batch_clearData           = clearData;
+  window.batch_deleteTask          = deleteTask;
+  window.batch_retryTask           = retryTask;
+  window.batch_zoomImg             = zoomImg;
+  window.batch_downloadImg         = downloadImg;
+  window.batch_tasks               = tasks;  // expose array reference for inline onclick index access
+
+})();
+</script>
+
+<!-- ================================================================
+     Tool: 电商详情图 — IIFE
+================================================================ -->
+<script>
+(function() {
+  'use strict';
+
+  // ===== Constants =====
+  const API_URL = 'https://sparkcode.top/v1/chat/completions';
+  const STORAGE_KEY = 'detail_image_config';
+  const MAX_TOKENS = 4096;
+  const MAX_RETRIES = 5;
+
+  // ===== State =====
+  const state = {
+    refImages: [],
+    productDescription: '',
+    phase: 'idle',
+    llmRawResponse: null,
+    tasks: []
+  };
+
+  // ===== Helpers =====
+  const $ = id => document.getElementById(id);
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+  }
+
+  function downloadDataUrl(url, name) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function zoomImg(src) {
+    $('detail-zoomImg').src = src;
+    $('detail-zoomModal').classList.add('show');
+  }
+
+  $('detail-zoomModal').addEventListener('click', () => $('detail-zoomModal').classList.remove('show'));
+
+  // ===== Config =====
+  const CONFIG_FIELDS = [
+    'detail-llmApiKey', 'detail-imageApiKey', 'detail-llmModel', 'detail-imageModel',
+    'detail-count', 'detail-concurrency', 'detail-forceSize', 'detail-forceAspect'
+  ];
+
+  function saveConfig() {
+    const cfg = {};
+    CONFIG_FIELDS.forEach(id => { cfg[id] = $(id).value; });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+  }
+
+  function loadConfig() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const cfg = JSON.parse(raw);
+      CONFIG_FIELDS.forEach(id => {
+        if (cfg[id] !== undefined && cfg[id] !== '') $(id).value = cfg[id];
+      });
+    } catch (e) {
+      console.warn('localStorage config parse failed:', e);
+    }
+  }
+
+  function bindConfigPersistence() {
+    CONFIG_FIELDS.forEach(id => {
+      $(id).addEventListener('change', saveConfig);
+      $(id).addEventListener('input', saveConfig);
+    });
+  }
+
+  // ===== Reference Images =====
+  function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleRefUpload(event) {
+    const files = Array.from(event.target.files);
+    for (const f of files) {
+      try {
+        const url = await readFileAsDataURL(f);
+        state.refImages.push(url);
+      } catch (e) {
+        console.warn('read file failed:', e);
+      }
+    }
+    event.target.value = '';
+    renderRefList();
+  }
+
+  function removeRef(idx) {
+    state.refImages.splice(idx, 1);
+    renderRefList();
+  }
+
+  function renderRefList() {
+    const list = $('detail-refList');
+    list.querySelectorAll('.ref-thumb').forEach(el => el.remove());
+    const uploadBtn = $('detail-uploadBtn');
+    state.refImages.forEach((url, i) => {
+      const div = document.createElement('div');
+      div.className = 'ref-thumb';
+      div.innerHTML = `
+        <img src="${url}" data-zoom-src="${url.replace(/"/g, '&quot;')}">
+        <div class="label">#${i + 1}</div>
+        <button class="remove" data-idx="${i}">&times;</button>
+      `;
+      div.querySelector('img').addEventListener('click', function() {
+        zoomImg(this.getAttribute('data-zoom-src'));
+      });
+      div.querySelector('.remove').addEventListener('click', () => removeRef(i));
+      list.insertBefore(div, uploadBtn);
+    });
+  }
+
+  function bindRefUploader() {
+    $('detail-uploadBtn').addEventListener('click', () => $('detail-refFileInput').click());
+    $('detail-refFileInput').addEventListener('change', handleRefUpload);
+  }
+
+  // ===== Description =====
+  function bindDescription() {
+    $('detail-productDescription').addEventListener('input', e => {
+      state.productDescription = e.target.value;
+    });
+  }
+
+  // ===== Clear =====
+  function clearAll() {
+    if (!confirm('确认清空所有上传图、商品介绍和生成结果？（配置不会清）')) return;
+    state.refImages = [];
+    state.productDescription = '';
+    state.tasks = [];
+    state.llmRawResponse = null;
+    state.phase = 'idle';
+    $('detail-productDescription').value = '';
+    renderRefList();
+    renderResultGrid();
+    clearError();
+    updateStatusBar();
+  }
+
+  // ===== Download All =====
+  function downloadAll() {
+    const done = state.tasks.filter(t => t.status === 'done' && t.result);
+    if (done.length === 0) {
+      alert('没有可下载的图片');
+      return;
+    }
+    done.forEach((t, i) => {
+      setTimeout(() => downloadDataUrl(t.result, `detail_${i + 1}.png`), i * 300);
+    });
+  }
+
+  // ===== Status Bar =====
+  const PHASE_LABEL = {
+    idle: '就绪',
+    llm: 'LLM 生成提示词中...',
+    generating: '并发生图中',
+    done: '完成',
+    llm_failed: 'LLM 阶段失败'
+  };
+
+  function updateStatusBar() {
+    const total = state.tasks.length;
+    const ok  = state.tasks.filter(t => t.status === 'done').length;
+    const err = state.tasks.filter(t => t.status === 'error').length;
+    let text = PHASE_LABEL[state.phase] || state.phase;
+    if (total > 0) text += ` ｜ 成功 ${ok} / 失败 ${err} / 总数 ${total}`;
+    $('detail-statusText').textContent = text;
+
+    const busy = state.phase === 'llm' || state.phase === 'generating';
+    $('detail-generateBtn').disabled = busy;
+  }
+
+  // ===== Error Banner =====
+  function showError(level, message, rawText) {
+    const cls = level === 'yellow' ? 'banner-yellow' : 'banner-red';
+    const rawBlock = rawText
+      ? `<details><summary style="cursor:pointer;font-size:13px;">展开 LLM 原文</summary><pre>${escapeHtml(rawText)}</pre></details>`
+      : '';
+    $('detail-errorBanner').innerHTML = `
+      <div class="banner ${cls}">
+        <div class="banner-row">
+          <div>${escapeHtml(message)}</div>
+          <button class="banner-btn" id="detail-retryLlmBtn">🔁 重试 LLM</button>
+        </div>
+        ${rawBlock}
+      </div>
+    `;
+    $('detail-retryLlmBtn').addEventListener('click', retryLLM);
+  }
+
+  function clearError() {
+    $('detail-errorBanner').innerHTML = '';
+  }
+
+  // ===== Stage 1: LLM =====
+  const SYSTEM_PROMPT =
+`你是电商详情图设计专家。基于用户提供的商品图与商品介绍，规划 N 张电商详情图（主图 / 卖点图 / 使用场景图 / 细节特写 / 规格说明 / 对比图 等中合理选择若干），为每张图生成一条独立、可直接送入文生图模型执行的中文提示词。
+
+输出**只能**是一个 JSON 数组，不要包裹 markdown 代码块、不要任何额外文字。每个元素结构：
+{ "ref_index": <从 1 开始的整数，指向用户上传的第几张商品图>,
+  "prompt": "<完整的、信息自包含的中文文生图提示词，描述构图、风格、光影、文字、布局>",
+  "size": "<可选: 512 | 1K | 2K | 4K>",
+  "aspect_ratio": "<可选: 1:1 | 16:9 | 9:16 | 4:3 | 3:4>" }
+
+要求：
+- ref_index 必须在用户上传的图片范围内
+- 当用户在介绍中明确指定了尺寸/比例需求时，请填入 size / aspect_ratio
+- 未要求时省略这两个字段
+- 提示词需自包含商品的关键视觉信息，不要假设模型已经"看过"参考图
+- 当用户指定了具体张数时严格按数量返回；未指定时返回 3-8 条之间的合理数量`;
+
+  class ParseError extends Error {
+    constructor(message, raw) { super(message); this.raw = raw; }
+  }
+
+  function buildLLMRequest(apiKey, model, count) {
+    const userText =
+      `商品介绍：\n${state.productDescription}\n\n` +
+      (count === 'auto'
+        ? '请生成 3-8 条之间合理数量的文生图提示词。'
+        : `请生成正好 ${count} 条文生图提示词。`);
+
+    const content = state.refImages.map(url => ({
+      type: 'image_url', image_url: { url }
+    }));
+    content.push({ type: 'text', text: userText });
+
+    return {
+      model,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content }
+      ],
+      max_tokens: MAX_TOKENS
+    };
+  }
+
+  async function callLLM(apiKey, model, count) {
+    const body = buildLLMRequest(apiKey, model, count);
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${text.substring(0, 300)}`);
+    }
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    return data;
+  }
+
+  function parseLLMResponse(data) {
+    const content = data.choices?.[0]?.message?.content;
+    if (!content || typeof content !== 'string') {
+      throw new ParseError('LLM 未返回文本内容', JSON.stringify(data).substring(0, 500));
+    }
+
+    let arr;
+    try { arr = JSON.parse(content); }
+    catch {
+      const fenced = content.match(/```(?:json)?\s*([\s\S]+?)```/);
+      if (fenced) {
+        try { arr = JSON.parse(fenced[1]); } catch {}
+      }
+    }
+    if (!arr) {
+      const m = content.match(/\[[\s\S]*\]/);
+      if (m) {
+        try { arr = JSON.parse(m[0]); } catch {}
+      }
+    }
+
+    if (!Array.isArray(arr)) {
+      throw new ParseError('未能解析为 JSON 数组', content);
+    }
+    if (arr.length === 0) {
+      throw new ParseError('LLM 返回了空数组（未生成任何提示词）', content);
+    }
+
+    return arr.map((item, i) => {
+      if (typeof item.ref_index !== 'number'
+          || item.ref_index < 1
+          || item.ref_index > state.refImages.length) {
+        throw new ParseError(
+          `第 ${i + 1} 项 ref_index 越界: ${item.ref_index}（共上传 ${state.refImages.length} 张）`,
+          content
+        );
+      }
+      if (typeof item.prompt !== 'string' || !item.prompt.trim()) {
+        throw new ParseError(`第 ${i + 1} 项 prompt 为空`, content);
+      }
+      return {
+        refIndex: item.ref_index,
+        prompt:   item.prompt.trim(),
+        size:     typeof item.size === 'string' ? item.size : null,
+        aspect:   typeof item.aspect_ratio === 'string' ? item.aspect_ratio : null
+      };
+    });
+  }
+
+  // ===== Stage 2: Image API =====
+  function snapshotImageConfig() {
+    return {
+      apiKey:   $('detail-imageApiKey').value.trim(),
+      model:    $('detail-imageModel').value.trim(),
+      uiSize:   $('detail-forceSize').value,
+      uiAspect: $('detail-forceAspect').value
+    };
+  }
+
+  function buildImageRequest(task, snap) {
+    const size   = snap.uiSize   || task.size   || null;
+    const aspect = snap.uiAspect || task.aspect || null;
+    const refUrl = state.refImages[task.refIndex - 1];
+
+    const body = {
+      model: snap.model,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: refUrl } },
+          { type: 'text', text: task.prompt }
+        ]
+      }],
+      max_tokens: MAX_TOKENS
+    };
+
+    const cfg = {};
+    if (size)   cfg.image_size = size;
+    if (aspect) cfg.aspect_ratio = aspect;
+    if (Object.keys(cfg).length) {
+      body.extra_body = { google: { image_config: cfg } };
+    }
+    return body;
+  }
+
+  function extractImageFromResponse(data) {
+    const message = data.choices?.[0]?.message;
+    if (!message) throw new Error('API 响应中没有 message 字段');
+
+    const finishReason = data.choices?.[0]?.finish_reason;
+    if (finishReason === 'content_filter') {
+      throw new Error('CONTENT_FILTER: 被内容安全过滤器拦截，将自动重试');
+    }
+
+    const content = message.content;
+
+    if (Array.isArray(content)) {
+      for (const part of content) {
+        if (part.type === 'image_url' && part.image_url?.url) return part.image_url.url;
+        if (part.inline_data) {
+          return `data:${part.inline_data.mime_type || 'image/png'};base64,${part.inline_data.data}`;
+        }
+        if (typeof part.text === 'string') {
+          const m = part.text.match(/data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+/);
+          if (m) return m[0];
+        }
+        if (typeof part === 'string') {
+          const m = part.match(/data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+/);
+          if (m) return m[0];
+        }
+      }
+    }
+
+    if (typeof content === 'string' && content.length > 0) {
+      const m = content.match(/data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+/);
+      if (m) return m[0];
+    }
+
+    const parts = message.parts || [];
+    for (const p of parts) {
+      if (p.inline_data) {
+        return `data:${p.inline_data.mime_type || 'image/png'};base64,${p.inline_data.data}`;
+      }
+    }
+
+    if (data.data?.[0]?.b64_json) return `data:image/png;base64,${data.data[0].b64_json}`;
+    if (data.data?.[0]?.url)      return data.data[0].url;
+
+    const preview = typeof content === 'string'
+      ? content.substring(0, 200)
+      : JSON.stringify(content)?.substring(0, 200);
+    throw new Error(`解析失败(content type=${typeof content}). 前 200 字: ${preview}`);
+  }
+
+  async function callImageAPI(task, snap) {
+    const body = buildImageRequest(task, snap);
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + snap.apiKey
+      },
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${text.substring(0, 200)}`);
+    }
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    return extractImageFromResponse(data);
+  }
+
+  // ===== Worker Pool =====
+  async function runOneTask(task, snap, maxRetries) {
+    task.status = 'running';
+    task.error = null;
+    renderResultCard(task);
+    updateStatusBar();
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      task.attempts = attempt;
+      try {
+        const url = await callImageAPI(task, snap);
+        task.result = url;
+        task.status = 'done';
+        task.error = null;
+        break;
+      } catch (e) {
+        const retryable = e.message.includes('CONTENT_FILTER');
+        console.warn(`[Task ${task.id}] attempt ${attempt} failed:`, e.message);
+        if (attempt < maxRetries && retryable) {
+          await sleep(1000 + Math.random() * 1000);
+          continue;
+        }
+        task.status = 'error';
+        task.error = attempt > 1 ? `${attempt}次尝试均失败: ${e.message}` : e.message;
+        break;
+      }
+    }
+
+    renderResultCard(task);
+    updateStatusBar();
+  }
+
+  async function runImageStage() {
+    const concurrency = parseInt($('detail-concurrency').value, 10) || 4;
+    const snap = snapshotImageConfig();
+    const queue = state.tasks.filter(t => t.status === 'wait');
+
+    const workers = Array(Math.min(concurrency, queue.length))
+      .fill(0)
+      .map(async () => {
+        while (queue.length) {
+          const task = queue.shift();
+          if (!task) continue;
+          await runOneTask(task, snap, MAX_RETRIES);
+        }
+      });
+    await Promise.all(workers);
+  }
+
+  // ===== Result Grid =====
+  function renderResultGrid() {
+    const grid = $('detail-resultGrid');
+    grid.innerHTML = '';
+    state.tasks.forEach(t => {
+      const card = document.createElement('div');
+      card.className = 'result-card';
+      card.id = `detail-task-${t.id}`;
+      card.innerHTML = renderCardInner(t);
+      grid.appendChild(card);
+      bindCardActions(card, t);
+    });
+  }
+
+  function renderResultCard(task) {
+    const card = $(`detail-task-${task.id}`);
+    if (!card) {
+      renderResultGrid();
+      return;
+    }
+    card.innerHTML = renderCardInner(task);
+    bindCardActions(card, task);
+  }
+
+  function renderCardInner(t) {
+    let media = '';
+    if (t.status === 'wait') {
+      media = `<div class="media">⏳ 等待</div>`;
+    } else if (t.status === 'running') {
+      media = `<div class="media"><div class="spinner"></div></div>`;
+    } else if (t.status === 'done' && t.result) {
+      media = `<div class="media"><img src="${t.result}" data-zoom></div>`;
+    } else if (t.status === 'error') {
+      media = `<div class="media"><div class="err-text">❌ ${escapeHtml(t.error || '生成失败')}</div></div>`;
+    } else {
+      media = `<div class="media">—</div>`;
+    }
+
+    let actions = '';
+    if (t.status === 'done') {
+      actions = `<button class="btn btn-primary" data-act="download">💾 下载</button>`;
+    } else if (t.status === 'error') {
+      actions = `<button class="btn btn-ghost" data-act="retry">🔄 重试这张</button>`;
+    } else {
+      actions = `<button class="btn btn-ghost" disabled>···</button>`;
+    }
+
+    return media + `<div class="actions">${actions}</div>`;
+  }
+
+  function bindCardActions(card, t) {
+    const img = card.querySelector('img[data-zoom]');
+    if (img) img.addEventListener('click', () => zoomImg(img.src));
+    const dl = card.querySelector('[data-act="download"]');
+    if (dl) dl.addEventListener('click', () => downloadDataUrl(t.result, `detail_${t.id}.png`));
+    const rt = card.querySelector('[data-act="retry"]');
+    if (rt) rt.addEventListener('click', () => retryOne(t.id));
+  }
+
+  async function retryOne(taskId) {
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    task.status = 'wait';
+    task.error = null;
+    task.attempts = 0;
+    await runOneTask(task, snapshotImageConfig(), MAX_RETRIES);
+  }
+
+  // ===== Generator (entry) =====
+  function validateInputs() {
+    if (!$('detail-llmApiKey').value.trim())        { alert('请填写 LLM API Key');   return false; }
+    if (!$('detail-imageApiKey').value.trim())      { alert('请填写 图像 API Key'); return false; }
+    if (!$('detail-llmModel').value.trim())         { alert('请填写 LLM 模型');     return false; }
+    if (!$('detail-imageModel').value.trim())       { alert('请填写 图像模型');     return false; }
+    if (state.refImages.length === 0)               { alert('请至少上传一张商品图'); return false; }
+    if (!$('detail-productDescription').value.trim()) { alert('请填写商品介绍'); return false; }
+    return true;
+  }
+
+  let _taskIdSeq = 0;
+  function nextTaskId() { return ++_taskIdSeq; }
+
+  async function runStage1() {
+    const llmKey   = $('detail-llmApiKey').value.trim();
+    const llmModel = $('detail-llmModel').value.trim();
+    const count    = $('detail-count').value;
+
+    state.phase = 'llm';
+    state.llmRawResponse = null;
+    clearError();
+    updateStatusBar();
+
+    let llmData;
+    try {
+      llmData = await callLLM(llmKey, llmModel, count);
+    } catch (e) {
+      state.phase = 'llm_failed';
+      updateStatusBar();
+      showError('red', `LLM 调用失败：${e.message}`, null);
+      return null;
+    }
+
+    state.llmRawResponse = llmData.choices?.[0]?.message?.content || JSON.stringify(llmData);
+
+    let parsed;
+    try {
+      parsed = parseLLMResponse(llmData);
+    } catch (e) {
+      state.phase = 'llm_failed';
+      updateStatusBar();
+      const raw = e.raw || state.llmRawResponse;
+      showError('yellow', `LLM 返回无法解析：${e.message}`, raw);
+      return null;
+    }
+
+    return parsed;
+  }
+
+  async function generate() {
+    if (state.phase === 'llm' || state.phase === 'generating') return;
+    if (!validateInputs()) return;
+
+    state.tasks = [];
+    renderResultGrid();
+
+    const parsed = await runStage1();
+    if (!parsed) return;
+
+    state.tasks = parsed.map(p => ({
+      id:       nextTaskId(),
+      refIndex: p.refIndex,
+      prompt:   p.prompt,
+      size:     p.size,
+      aspect:   p.aspect,
+      status:   'wait',
+      result:   null,
+      error:    null,
+      attempts: 0
+    }));
+    renderResultGrid();
+
+    state.phase = 'generating';
+    updateStatusBar();
+
+    await runImageStage();
+
+    state.phase = 'done';
+    updateStatusBar();
+  }
+
+  async function retryLLM() {
+    if (state.phase === 'llm' || state.phase === 'generating') return;
+    await generate();
+  }
+
+  // ===== Init =====
+  window.addEventListener('DOMContentLoaded', () => {
+    loadConfig();
+    bindConfigPersistence();
+    bindRefUploader();
+    bindDescription();
+    $('detail-clearBtn').addEventListener('click', clearAll);
+    $('detail-downloadAllBtn').addEventListener('click', downloadAll);
+    $('detail-generateBtn').addEventListener('click', generate);
+    updateStatusBar();
+  });
+
+  // Expose globals (safety — retryLLM is only called via addEventListener, not inline onclick; expose anyway)
+  window.detail_zoomImg  = zoomImg;
+  window.detail_retryLLM = retryLLM;
+
+})();
+</script>
+</body>
+</html>
