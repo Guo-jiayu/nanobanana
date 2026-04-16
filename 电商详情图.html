@@ -225,7 +225,7 @@
 
   <div class="card" id="descCard">
     <div class="card-title">📝 商品介绍</div>
-    <!-- Task 4 fills here -->
+    <textarea id="productDescription" rows="6" placeholder="例如：这是一款专为户外露营设计的便携式折叠桌，铝合金材质，承重 30kg，10 秒展开，附带收纳袋……"></textarea>
   </div>
 
   <div class="card" id="resultCard">
@@ -363,11 +363,48 @@
     $('refFileInput').addEventListener('change', handleRefUpload);
   }
 
+  // ===== Description =====
+  function bindDescription() {
+    $('productDescription').addEventListener('input', e => {
+      state.productDescription = e.target.value;
+    });
+  }
+
+  // ===== Clear =====
+  function clearAll() {
+    if (!confirm('确认清空所有上传图、商品介绍和生成结果？（配置不会清）')) return;
+    state.refImages = [];
+    state.productDescription = '';
+    state.tasks = [];
+    state.llmRawResponse = null;
+    state.phase = 'idle';
+    $('productDescription').value = '';
+    renderRefList();
+    renderResultGrid();    // defined in Task 9
+    clearError();          // defined in Task 5
+    updateStatusBar();     // defined in Task 5
+  }
+
+  // ===== Download All =====
+  function downloadAll() {
+    const done = state.tasks.filter(t => t.status === 'done' && t.result);
+    if (done.length === 0) {
+      alert('没有可下载的图片');
+      return;
+    }
+    done.forEach((t, i) => {
+      setTimeout(() => downloadDataUrl(t.result, `detail_${i + 1}.png`), i * 300);
+    });
+  }
+
   // ===== Init (filled by later tasks) =====
   window.addEventListener('DOMContentLoaded', () => {
     loadConfig();
     bindConfigPersistence();
     bindRefUploader();
+    bindDescription();
+    $('clearBtn').addEventListener('click', clearAll);
+    $('downloadAllBtn').addEventListener('click', downloadAll);
   });
 </script>
 </body>
