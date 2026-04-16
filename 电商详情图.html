@@ -555,6 +555,114 @@
     });
   }
 
+  // ===== Stage 2: Image API (single call) =====
+  function snapshotImageConfig() {
+    return {
+      apiKey:   $('imageApiKey').value.trim(),
+      model:    $('imageModel').value.trim(),
+      uiSize:   $('forceSize').value,
+      uiAspect: $('forceAspect').value
+    };
+  }
+
+  function buildImageRequest(task, snap) {
+    const size   = snap.uiSize   || task.size   || null;
+    const aspect = snap.uiAspect || task.aspect || null;
+    const refUrl = state.refImages[task.refIndex - 1];
+
+    const body = {
+      model: snap.model,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: refUrl } },
+          { type: 'text', text: task.prompt }
+        ]
+      }],
+      max_tokens: MAX_TOKENS
+    };
+
+    const cfg = {};
+    if (size)   cfg.image_size = size;
+    if (aspect) cfg.aspect_ratio = aspect;
+    if (Object.keys(cfg).length) {
+      body.extra_body = { google: { image_config: cfg } };
+    }
+    return body;
+  }
+
+  function extractImageFromResponse(data) {
+    const message = data.choices?.[0]?.message;
+    if (!message) throw new Error('API 响应中没有 message 字段');
+
+    const finishReason = data.choices?.[0]?.finish_reason;
+    if (finishReason === 'content_filter') {
+      throw new Error('CONTENT_FILTER: 被内容安全过滤器拦截，将自动重试');
+    }
+
+    const content = message.content;
+
+    // 路径 1: content 是数组 (多模态 part 列表)
+    if (Array.isArray(content)) {
+      for (const part of content) {
+        if (part.type === 'image_url' && part.image_url?.url) return part.image_url.url;
+        if (part.inline_data) {
+          return `data:${part.inline_data.mime_type || 'image/png'};base64,${part.inline_data.data}`;
+        }
+        if (typeof part.text === 'string') {
+          const m = part.text.match(/data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+/);
+          if (m) return m[0];
+        }
+        if (typeof part === 'string') {
+          const m = part.match(/data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+/);
+          if (m) return m[0];
+        }
+      }
+    }
+
+    // 路径 2: content 是字符串，里面嵌 data url
+    if (typeof content === 'string' && content.length > 0) {
+      const m = content.match(/data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+/);
+      if (m) return m[0];
+    }
+
+    // 路径 3: message.parts[].inline_data
+    const parts = message.parts || [];
+    for (const p of parts) {
+      if (p.inline_data) {
+        return `data:${p.inline_data.mime_type || 'image/png'};base64,${p.inline_data.data}`;
+      }
+    }
+
+    // 路径 4 / 5: data[0].b64_json or data[0].url
+    if (data.data?.[0]?.b64_json) return `data:image/png;base64,${data.data[0].b64_json}`;
+    if (data.data?.[0]?.url)      return data.data[0].url;
+
+    const preview = typeof content === 'string'
+      ? content.substring(0, 200)
+      : JSON.stringify(content)?.substring(0, 200);
+    throw new Error(`解析失败(content type=${typeof content}). 前 200 字: ${preview}`);
+  }
+
+  async function callImageAPI(task, snap) {
+    const body = buildImageRequest(task, snap);
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + snap.apiKey
+      },
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${text.substring(0, 200)}`);
+    }
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    return extractImageFromResponse(data);
+  }
+
   // ===== Init (filled by later tasks) =====
   window.addEventListener('DOMContentLoaded', () => {
     loadConfig();
