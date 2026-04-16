@@ -663,6 +663,55 @@
     return extractImageFromResponse(data);
   }
 
+  // ===== Worker Pool =====
+  async function runOneTask(task, snap, maxRetries) {
+    task.status = 'running';
+    task.error = null;
+    renderResultCard(task);                     // defined in Task 9
+    updateStatusBar();
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      task.attempts = attempt;
+      try {
+        const url = await callImageAPI(task, snap);
+        task.result = url;
+        task.status = 'done';
+        task.error = null;
+        break;
+      } catch (e) {
+        const retryable = e.message.includes('CONTENT_FILTER');
+        console.warn(`[Task ${task.id}] attempt ${attempt} failed:`, e.message);
+        if (attempt < maxRetries && retryable) {
+          await sleep(1000 + Math.random() * 1000);
+          continue;
+        }
+        task.status = 'error';
+        task.error = attempt > 1 ? `${attempt}次尝试均失败: ${e.message}` : e.message;
+        break;
+      }
+    }
+
+    renderResultCard(task);
+    updateStatusBar();
+  }
+
+  async function runImageStage() {
+    const concurrency = parseInt($('concurrency').value, 10) || 4;
+    const snap = snapshotImageConfig();
+    const queue = state.tasks.filter(t => t.status === 'wait');
+
+    const workers = Array(Math.min(concurrency, queue.length))
+      .fill(0)
+      .map(async () => {
+        while (queue.length) {
+          const task = queue.shift();
+          if (!task) continue;
+          await runOneTask(task, snap, MAX_RETRIES);
+        }
+      });
+    await Promise.all(workers);
+  }
+
   // ===== Init (filled by later tasks) =====
   window.addEventListener('DOMContentLoaded', () => {
     loadConfig();
