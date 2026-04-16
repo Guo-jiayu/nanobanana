@@ -149,7 +149,70 @@
 
   <div class="card" id="configCard">
     <div class="card-title">⚙️ 配置</div>
-    <!-- Task 2 fills here -->
+    <div class="form-grid">
+      <div class="form-group span2">
+        <label>LLM API Key（用于生成提示词）</label>
+        <input id="llmApiKey" type="password" placeholder="sk-...">
+      </div>
+      <div class="form-group span2">
+        <label>图像 API Key（用于文生图）</label>
+        <input id="imageApiKey" type="password" placeholder="sk-...">
+      </div>
+      <div class="form-group">
+        <label>LLM 模型</label>
+        <input id="llmModel" placeholder="gemini-2.5-pro">
+      </div>
+      <div class="form-group">
+        <label>图像模型</label>
+        <input id="imageModel" value="gemini-3.1-flash-image-preview">
+      </div>
+      <div class="form-group">
+        <label>数量</label>
+        <select id="count">
+          <option value="auto">自动（3-8 张）</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="7">7</option>
+          <option value="8">8</option>
+          <option value="9">9</option>
+          <option value="10">10</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>并发</label>
+        <select id="concurrency">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="4" selected>4</option>
+          <option value="8">8</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>强制尺寸（留空 = LLM 决定）</label>
+        <select id="forceSize">
+          <option value="">— 留空 —</option>
+          <option value="512">512</option>
+          <option value="1K">1K</option>
+          <option value="2K">2K</option>
+          <option value="4K">4K</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>强制比例（留空 = LLM 决定）</label>
+        <select id="forceAspect">
+          <option value="">— 留空 —</option>
+          <option value="1:1">1:1</option>
+          <option value="16:9">16:9</option>
+          <option value="9:16">9:16</option>
+          <option value="4:3">4:3</option>
+          <option value="3:4">3:4</option>
+        </select>
+      </div>
+    </div>
   </div>
 
   <div class="card" id="refCard">
@@ -213,9 +276,42 @@
   }
   $('zoomModal').addEventListener('click', () => $('zoomModal').classList.remove('show'));
 
+  // ===== Config =====
+  const CONFIG_FIELDS = [
+    'llmApiKey', 'imageApiKey', 'llmModel', 'imageModel',
+    'count', 'concurrency', 'forceSize', 'forceAspect'
+  ];
+
+  function saveConfig() {
+    const cfg = {};
+    CONFIG_FIELDS.forEach(id => { cfg[id] = $(id).value; });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+  }
+
+  function loadConfig() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const cfg = JSON.parse(raw);
+      CONFIG_FIELDS.forEach(id => {
+        if (cfg[id] !== undefined && cfg[id] !== '') $(id).value = cfg[id];
+      });
+    } catch (e) {
+      console.warn('localStorage config parse failed:', e);
+    }
+  }
+
+  function bindConfigPersistence() {
+    CONFIG_FIELDS.forEach(id => {
+      $(id).addEventListener('change', saveConfig);
+      $(id).addEventListener('input', saveConfig);
+    });
+  }
+
   // ===== Init (filled by later tasks) =====
   window.addEventListener('DOMContentLoaded', () => {
-    // Tasks 2+ register their wiring here
+    loadConfig();
+    bindConfigPersistence();
   });
 </script>
 </body>
