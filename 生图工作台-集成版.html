@@ -1418,7 +1418,8 @@
   window.batch_retryTask           = retryTask;
   window.batch_zoomImg             = zoomImg;
   window.batch_downloadImg         = downloadImg;
-  window.batch_tasks               = tasks;  // expose array reference for inline onclick index access
+  // tasks 在本 IIFE 里会被重赋值（dbLoadTasks / filter / clearData），不能拍快照；用 getter 保持同步
+  Object.defineProperty(window, 'batch_tasks', { get: () => tasks });
 
 })();
 </script>
