@@ -247,6 +247,7 @@
   const STORAGE_KEY = 'detail_image_config';
   const MAX_TOKENS = 4096;
   const MAX_RETRIES = 5;
+  const LLM_MAX_ATTEMPTS = 3;
 
   // ===== State =====
   const state = {
@@ -254,6 +255,7 @@
     productDescription: '',
     phase: 'idle',            // 'idle' | 'llm' | 'generating' | 'done' | 'llm_failed'
     llmRawResponse: null,
+    llmAttempt: 0,            // 当前 LLM 第几次尝试（1-based，0 表示未开始）
     tasks: []                 // see Task 6 for shape
   };
 
@@ -377,6 +379,7 @@
     state.productDescription = '';
     state.tasks = [];
     state.llmRawResponse = null;
+    state.llmAttempt = 0;
     state.phase = 'idle';
     $('productDescription').value = '';
     renderRefList();
@@ -411,6 +414,9 @@
     const ok = state.tasks.filter(t => t.status === 'done').length;
     const err = state.tasks.filter(t => t.status === 'error').length;
     let text = PHASE_LABEL[state.phase] || state.phase;
+    if (state.phase === 'llm' && state.llmAttempt > 0) {
+      text += `（第 ${state.llmAttempt}/${LLM_MAX_ATTEMPTS} 次）`;
+    }
     if (total > 0) text += ` ｜ 成功 ${ok} / 失败 ${err} / 总数 ${total}`;
     $('statusText').textContent = text;
 
@@ -507,13 +513,20 @@
 
   // 兼容两种响应：标准 JSON 与 SSE 流（data: {...}\n\n ... data: [DONE]）
   function parseLLMHttpBody(text) {
-    if (text.trimStart().startsWith('{')) {
-      return JSON.parse(text);
+    // 去 BOM + 头部空白
+    const trimmed = text.replace(/^\uFEFF/, '').trimStart();
+
+    // 尝试 1: 整体是 JSON 对象或数组
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try { return JSON.parse(trimmed); } catch { /* 可能是混合 SSE，落到下一分支 */ }
     }
+
+    // 尝试 2: SSE 流 —— 拼接所有 data: 行里的 delta/message
     let deltaContent = '';
     let messageContent = '';
     let lastObj = null;
-    for (const line of text.split(/\r?\n/)) {
+    for (const rawLine of trimmed.split(/\r?\n/)) {
+      const line = rawLine.trim();
       if (!line.startsWith('data:')) continue;
       const payload = line.slice(5).trim();
       if (!payload || payload === '[DONE]') continue;
@@ -529,24 +542,32 @@
         messageContent = ch.message.content;
       }
     }
-    if (!lastObj) {
-      throw new Error('SSE 响应为空，原文前 300 字: ' + text.substring(0, 300));
-    }
-    const content = deltaContent || messageContent;
-    if (!content) {
+
+    if (lastObj) {
+      const content = deltaContent || messageContent;
+      if (content) {
+        return {
+          ...lastObj,
+          choices: [{
+            ...(lastObj.choices?.[0] || {}),
+            message: { role: 'assistant', content }
+          }]
+        };
+      }
       const usage = lastObj.usage || {};
       throw new Error(
-        `SSE 解析出空内容（completion_tokens=${usage.completion_tokens ?? '?'}，模型可能未生成任何 token）。原文前 300 字: ` +
+        `SSE 解析出空内容（completion_tokens=${usage.completion_tokens ?? '?'}，可能被截断或模型未生成）。原文前 300 字: ` +
         text.substring(0, 300)
       );
     }
-    return {
-      ...lastObj,
-      choices: [{
-        ...(lastObj.choices?.[0] || {}),
-        message: { role: 'assistant', content }
-      }]
-    };
+
+    // 尝试 3: 兜底 —— 抓第一段像 JSON 对象的内容
+    const match = trimmed.match(/\{[\s\S]*\}/);
+    if (match) {
+      try { return JSON.parse(match[0]); } catch { /* fall through */ }
+    }
+
+    throw new Error('响应既非 JSON 也非 SSE 流。原文前 300 字: ' + text.substring(0, 300));
   }
 
   function parseLLMResponse(data) {
@@ -581,11 +602,17 @@
     }
 
     return arr.map((item, i) => {
-      if (typeof item.ref_index !== 'number'
-          || item.ref_index < 1
-          || item.ref_index > state.refImages.length) {
+      if (!item || typeof item !== 'object') {
+        throw new ParseError(`第 ${i + 1} 项不是对象`, content);
+      }
+      // ref_index 容错：接受数字或可解析为整数的字符串
+      let refIdx = item.ref_index;
+      if (typeof refIdx === 'string') refIdx = parseInt(refIdx, 10);
+      if (!Number.isInteger(refIdx)
+          || refIdx < 1
+          || refIdx > state.refImages.length) {
         throw new ParseError(
-          `第 ${i + 1} 项 ref_index 越界: ${item.ref_index}（共上传 ${state.refImages.length} 张）`,
+          `第 ${i + 1} 项 ref_index 越界或非法: ${item.ref_index}（共上传 ${state.refImages.length} 张）`,
           content
         );
       }
@@ -593,7 +620,7 @@
         throw new ParseError(`第 ${i + 1} 项 prompt 为空`, content);
       }
       return {
-        refIndex: item.ref_index,
+        refIndex: refIdx,
         prompt: item.prompt.trim(),
         size: typeof item.size === 'string' ? item.size : null,
         aspect: typeof item.aspect_ratio === 'string' ? item.aspect_ratio : null
@@ -848,33 +875,41 @@
 
     state.phase = 'llm';
     state.llmRawResponse = null;
+    state.llmAttempt = 0;
     clearError();
     updateStatusBar();
 
-    let llmData;
-    try {
-      llmData = await callLLM(llmKey, llmModel, count);
-    } catch (e) {
-      state.phase = 'llm_failed';
+    let lastError = null;
+    let lastRaw = null;
+    let lastIsParseError = false;
+
+    for (let attempt = 1; attempt <= LLM_MAX_ATTEMPTS; attempt++) {
+      state.llmAttempt = attempt;
       updateStatusBar();
-      showError('red', `LLM 调用失败：${e.message}`, null);
-      return null;
+      try {
+        const llmData = await callLLM(llmKey, llmModel, count);
+        state.llmRawResponse = llmData.choices?.[0]?.message?.content || JSON.stringify(llmData);
+        const parsed = parseLLMResponse(llmData);
+        return parsed;
+      } catch (e) {
+        lastError = e;
+        lastIsParseError = e instanceof ParseError;
+        lastRaw = (lastIsParseError && e.raw) || state.llmRawResponse;
+        console.warn(`[LLM] attempt ${attempt}/${LLM_MAX_ATTEMPTS} failed:`, e.message);
+        if (attempt < LLM_MAX_ATTEMPTS) {
+          await sleep(600 + Math.random() * 600);
+        }
+      }
     }
 
-    state.llmRawResponse = llmData.choices?.[0]?.message?.content || JSON.stringify(llmData);
-
-    let parsed;
-    try {
-      parsed = parseLLMResponse(llmData);
-    } catch (e) {
-      state.phase = 'llm_failed';
-      updateStatusBar();
-      const raw = e.raw || state.llmRawResponse;
-      showError('yellow', `LLM 返回无法解析：${e.message}`, raw);
-      return null;
-    }
-
-    return parsed;
+    state.phase = 'llm_failed';
+    updateStatusBar();
+    showError(
+      lastIsParseError ? 'yellow' : 'red',
+      `LLM 连续 ${LLM_MAX_ATTEMPTS} 次失败：${lastError?.message || '未知错误'}`,
+      lastRaw
+    );
+    return null;
   }
 
   async function generate() {
