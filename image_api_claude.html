@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Batch Image Generation API</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; min-height: 100vh; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  h1 { text-align: center; margin-bottom: 24px; font-size: 24px; color: #1a1a1a; }
+
+  .card { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .card-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #555; border-bottom: 1px solid #eee; padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+
+  .form-row { display: flex; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+  .form-group { display: flex; flex-direction: column; flex: 1; min-width: 200px; }
+  .form-group.full { flex: 1 1 100%; }
+  label { font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #555; }
+  input, select, textarea {
+    padding: 8px 12px; border: 1px solid #d0d5dd; border-radius: 8px; font-size: 14px;
+    transition: border-color 0.2s; outline: none; font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { border-color: #4f8cff; box-shadow: 0 0 0 2px rgba(79,140,255,0.15); }
+  textarea { resize: vertical; min-height: 60px; }
+
+  .size-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .size-btn {
+    padding: 6px 16px; border: 2px solid #d0d5dd; border-radius: 8px; background: #fff;
+    cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; color: #555;
+  }
+  .size-btn:hover { border-color: #4f8cff; color: #4f8cff; }
+  .size-btn.active { border-color: #4f8cff; background: #4f8cff; color: #fff; }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 32px; background: #4f8cff; color: #fff; border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+  }
+  .btn-primary:hover { background: #3a6fd8; }
+  .btn-primary:disabled { background: #a0b4d0; cursor: not-allowed; }
+
+  .btn-danger {
+    padding: 6px 16px; background: #ff4d4f; color: #fff; border: none; border-radius: 8px;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+  }
+  .btn-danger:hover { background: #d9363e; }
+
+  .btn-secondary {
+    padding: 6px 16px; background: #f0f0f0; color: #555; border: 1px solid #d0d5dd; border-radius: 8px;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-secondary:hover { border-color: #4f8cff; color: #4f8cff; }
+
+  .btn-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+  .spinner { display: none; width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Upload areas */
+  .upload-section { display: flex; gap: 24px; margin-bottom: 16px; }
+  .upload-column { flex: 1; min-width: 0; }
+  .upload-column h3 { font-size: 14px; font-weight: 600; color: #555; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .upload-column h3 .count-badge {
+    font-size: 12px; background: #e8f0fe; color: #3a6fd8; padding: 1px 8px; border-radius: 10px;
+  }
+
+  .drop-zone {
+    border: 2px dashed #d0d5dd; border-radius: 10px; padding: 32px 16px;
+    text-align: center; color: #999; font-size: 14px; cursor: pointer;
+    transition: all 0.2s; min-height: 120px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 8px;
+  }
+  .drop-zone:hover, .drop-zone.dragover { border-color: #4f8cff; background: #f5f8ff; color: #4f8cff; }
+  .drop-zone .icon { font-size: 28px; }
+
+  .thumb-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .thumb-item {
+    position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden;
+    border: 2px solid #d0d5dd; flex-shrink: 0; cursor: grab; transition: all 0.15s;
+  }
+  .thumb-item:active { cursor: grabbing; }
+  .thumb-item.dragging { opacity: 0.4; border-color: #4f8cff; }
+  .thumb-item.drag-over { border-color: #4f8cff; transform: scale(1.05); }
+  .thumb-item img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+  .thumb-item .thumb-idx {
+    position: absolute; bottom: 2px; left: 2px; background: rgba(0,0,0,0.6); color: #fff;
+    font-size: 11px; padding: 0 5px; border-radius: 4px; font-weight: 600;
+  }
+  .thumb-remove {
+    position: absolute; top: 2px; right: 2px; width: 20px; height: 20px;
+    background: rgba(0,0,0,0.55); color: #fff; border: none; border-radius: 50%;
+    font-size: 14px; line-height: 20px; text-align: center; cursor: pointer; z-index: 2;
+  }
+  .thumb-remove:hover { background: rgba(200,0,0,0.8); }
+
+  /* Pair grid */
+  .pair-grid { display: flex; flex-direction: column; gap: 10px; }
+  .pair-row {
+    display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+    background: #fafbfc; border: 1px solid #e8e8e8; border-radius: 10px;
+  }
+  .pair-row .pair-num {
+    font-size: 13px; font-weight: 700; color: #999; width: 30px; text-align: center; flex-shrink: 0;
+  }
+  .pair-img-wrap {
+    width: 64px; height: 64px; border-radius: 8px; overflow: hidden; border: 2px solid #d0d5dd;
+    flex-shrink: 0; background: #f5f5f5; display: flex; align-items: center; justify-content: center;
+  }
+  .pair-img-wrap img { width: 100%; height: 100%; object-fit: cover; }
+  .pair-img-wrap.empty { border-style: dashed; color: #ccc; font-size: 12px; }
+  .pair-arrow { font-size: 20px; color: #bbb; flex-shrink: 0; }
+  .pair-status { margin-left: auto; flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+  .pair-status .status-text { font-size: 12px; color: #999; }
+  .pair-status .status-text.success { color: #52c41a; font-weight: 600; }
+  .pair-status .status-text.error { color: #ff4d4f; font-weight: 600; }
+  .pair-status .status-text.running { color: #4f8cff; font-weight: 600; }
+  .pair-result-thumb {
+    width: 64px; height: 64px; border-radius: 8px; overflow: hidden; border: 2px solid #52c41a;
+    flex-shrink: 0; cursor: pointer;
+  }
+  .pair-result-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .pair-remove-btn {
+    padding: 2px 8px; background: none; border: 1px solid #ddd; border-radius: 6px;
+    cursor: pointer; color: #999; font-size: 12px;
+  }
+  .pair-remove-btn:hover { border-color: #ff4d4f; color: #ff4d4f; }
+
+  /* Progress bar */
+  .progress-bar-wrap { width: 100%; height: 6px; background: #e8e8e8; border-radius: 3px; margin-top: 12px; display: none; }
+  .progress-bar-fill { height: 100%; background: #4f8cff; border-radius: 3px; transition: width 0.3s; width: 0; }
+
+  /* Result modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100;
+    justify-content: center; align-items: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-box {
+    background: #fff; border-radius: 14px; padding: 24px; max-width: 800px; width: 90%;
+    max-height: 85vh; overflow-y: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+  }
+  .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 14px; }
+  .modal-close {
+    margin-top: 14px; padding: 6px 20px; background: #eee; border: none; border-radius: 8px;
+    cursor: pointer; font-size: 13px;
+  }
+  .modal-close:hover { background: #ddd; }
+  .modal-img { max-width: 100%; border-radius: 8px; border: 1px solid #e0e0e0; }
+  .download-btn {
+    display: inline-block; margin-top: 8px; padding: 6px 18px; font-size: 13px;
+    background: #52c41a; color: #fff; border: none; border-radius: 6px; cursor: pointer; text-decoration: none;
+  }
+  .download-btn:hover { background: #3fad09; }
+
+  /* Results gallery */
+  .result-gallery { display: flex; gap: 12px; flex-wrap: wrap; }
+  .result-card {
+    width: 180px; border: 1px solid #e8e8e8; border-radius: 10px; overflow: hidden;
+    background: #fafbfc; cursor: pointer; transition: transform 0.15s;
+  }
+  .result-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  .result-card img { width: 100%; height: 140px; object-fit: cover; }
+  .result-card .result-card-info { padding: 8px 10px; font-size: 12px; color: #666; }
+  .result-card .result-card-info .rc-time { color: #999; }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: #bbb; font-size: 14px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab-btn {
+    padding: 8px 20px; border: none; background: #f0f0f0; border-radius: 8px 8px 0 0;
+    cursor: pointer; font-size: 14px; font-weight: 600; color: #888; transition: all 0.15s;
+  }
+  .tab-btn:hover { color: #555; }
+  .tab-btn.active { background: #fff; color: #4f8cff; box-shadow: 0 -2px 8px rgba(0,0,0,0.05); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  @media (max-width: 768px) {
+    .upload-section { flex-direction: column; }
+    .pair-row { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Batch Image Generation</h1>
+
+  <!-- API Config -->
+  <div class="card">
+    <div class="card-title">API 配置</div>
+    <div class="form-row">
+      <div class="form-group" style="flex:2">
+        <label>API Key</label>
+        <input id="apiKey" type="password" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+      </div>
+      <div class="form-group" style="flex:2">
+        <label>Model</label>
+        <input id="model" value="gemini-3.1-flash-image-preview" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Config -->
+  <div class="card">
+    <div class="card-title">图片配置</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>图片尺寸</label>
+        <div class="size-btns" id="sizeBtns">
+          <button class="size-btn active" data-size="">不指定</button>
+          <button class="size-btn" data-size="512">512</button>
+          <button class="size-btn" data-size="1K">1K</button>
+          <button class="size-btn" data-size="2K">2K</button>
+          <button class="size-btn" data-size="4K">4K</button>
+        </div>
+      </div>
+      <div class="form-group" style="flex: 0 0 180px">
+        <label>宽高比 (可选)</label>
+        <select id="aspectRatio">
+          <option value="">不指定</option>
+          <option value="1:1">1:1</option>
+          <option value="16:9">16:9</option>
+          <option value="9:16">9:16</option>
+          <option value="4:3">4:3</option>
+          <option value="3:4">3:4</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex: 0 0 180px">
+        <label>清晰度</label>
+        <select id="clarity">
+          <option value="">不指定</option>
+          <option value="standard">标准 (standard)</option>
+          <option value="hd">高清 (HD)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prompt -->
+  <div class="card">
+    <div class="card-title">提示词</div>
+    <div class="form-row">
+      <div class="form-group full">
+        <textarea id="prompt" rows="3" placeholder="请参考参考图的风格，将产品图按照相同的风格重新生成">请参考参考图的风格，将产品图按照相同的风格重新生成</textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Batch Upload -->
+  <div class="card">
+    <div class="card-title">
+      <span>批量上传</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-secondary" onclick="clearAllImages()">清空全部图片</button>
+      </div>
+    </div>
+    <div class="upload-section">
+      <div class="upload-column">
+        <h3>参考图 <span class="count-badge" id="refCount">0</span></h3>
+        <div class="drop-zone" id="refDropZone" data-type="ref">
+          <div class="icon">&#128196;</div>
+          <div>拖拽图片到此处，或点击上传</div>
+          <div style="font-size:12px;">支持批量上传多张</div>
+          <input type="file" accept="image/*" multiple hidden />
+        </div>
+        <div class="thumb-list" id="refThumbList" data-type="ref"></div>
+      </div>
+      <div class="upload-column">
+        <h3>产品图 <span class="count-badge" id="prodCount">0</span></h3>
+        <div class="drop-zone" id="prodDropZone" data-type="prod">
+          <div class="icon">&#128247;</div>
+          <div>拖拽图片到此处，或点击上传</div>
+          <div style="font-size:12px;">支持批量上传多张</div>
+          <input type="file" accept="image/*" multiple hidden />
+        </div>
+        <div class="thumb-list" id="prodThumbList" data-type="prod"></div>
+      </div>
+    </div>
+
+    <div style="font-size:13px;color:#888;margin-bottom:12px;">
+      提示：图片按上传顺序自动配对。可拖拽缩略图调整顺序。
+    </div>
+  </div>
+
+  <!-- Pair Preview & Generate -->
+  <div class="card">
+    <div class="card-title">
+      <span>配对预览 & 生成</span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span id="batchStatus" style="font-size:13px;color:#999;"></span>
+        <button class="btn-primary" id="batchBtn" onclick="startBatchGeneration()">
+          <span class="spinner" id="batchSpinner"></span>
+          批量生成
+        </button>
+      </div>
+    </div>
+    <div class="progress-bar-wrap" id="progressWrap">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+    <div class="pair-grid" id="pairGrid">
+      <div class="empty-state">请先上传参考图和产品图</div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="card">
+    <div class="card-title">
+      <span>生成结果</span>
+      <button class="btn-danger" onclick="clearHistory()" style="font-size:12px;padding:4px 12px;">清空历史</button>
+    </div>
+    <div class="result-gallery" id="resultGallery">
+      <div class="empty-state" style="width:100%;">暂无生成结果</div>
+    </div>
+  </div>
+</div>
+
+<!-- Image preview modal -->
+<div class="modal-overlay" id="previewModal">
+  <div class="modal-box">
+    <div class="modal-title" id="previewTitle">图片预览</div>
+    <img class="modal-img" id="previewImg" />
+    <div style="margin-top:10px;">
+      <a class="download-btn" id="previewDownload" download="image.png">下载图片</a>
+    </div>
+    <button class="modal-close" onclick="closePreview()">关闭</button>
+  </div>
+</div>
+
+<script>
+const API_URL = 'https://sparkcode.top/v1/chat/completions';
+const MAX_TOKENS = 4096;
+const STORAGE_KEY = 'batch_img_gen_claude';
+
+// ---- State ----
+let refImages = [];   // [{id, dataUrl, name}]
+let prodImages = [];  // [{id, dataUrl, name}]
+let pairResults = []; // [{refId, prodId, refUrl, prodUrl, resultUrl, status, error, elapsed}]
+let historyResults = []; // [{resultUrl, refUrl, prodUrl, prompt, time, elapsed, size}]
+let idCounter = 0;
+let isGenerating = false;
+
+// ---- Init ----
+function init() {
+  loadState();
+  setupDropZones();
+  setupSizeBtns();
+  renderAll();
+}
+
+// ---- Persistence ----
+function saveState() {
+  try {
+    const state = {
+      apiKey: document.getElementById('apiKey').value,
+      model: document.getElementById('model').value,
+      prompt: document.getElementById('prompt').value,
+      size: getSelectedSize(),
+      aspect: document.getElementById('aspectRatio').value,
+      clarity: document.getElementById('clarity').value,
+      refImages,
+      prodImages,
+      historyResults,
+      idCounter
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch(e) {
+    // localStorage might be full for large images; try saving without images
+    try {
+      const state = {
+        apiKey: document.getElementById('apiKey').value,
+        model: document.getElementById('model').value,
+        prompt: document.getElementById('prompt').value,
+        size: getSelectedSize(),
+        aspect: document.getElementById('aspectRatio').value,
+        clarity: document.getElementById('clarity').value,
+        refImages: [],
+        prodImages: [],
+        historyResults,
+        idCounter
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch(e2) { console.warn('Storage full'); }
+  }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const state = JSON.parse(raw);
+    if (state.apiKey) document.getElementById('apiKey').value = state.apiKey;
+    if (state.model) document.getElementById('model').value = state.model;
+    if (state.prompt) document.getElementById('prompt').value = state.prompt;
+    if (state.aspect) document.getElementById('aspectRatio').value = state.aspect;
+    if (state.clarity) document.getElementById('clarity').value = state.clarity;
+    if (state.refImages) refImages = state.refImages;
+    if (state.prodImages) prodImages = state.prodImages;
+    if (state.historyResults) historyResults = state.historyResults;
+    if (state.idCounter) idCounter = state.idCounter;
+    // Restore size button
+    if (state.size !== undefined) {
+      document.querySelectorAll('.size-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.size === state.size);
+      });
+    }
+  } catch(e) { console.warn('Failed to load state', e); }
+}
+
+// ---- Size buttons ----
+function setupSizeBtns() {
+  document.getElementById('sizeBtns').addEventListener('click', e => {
+    const btn = e.target.closest('.size-btn');
+    if (!btn) return;
+    document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    saveState();
+  });
+  // Save on config change
+  ['aspectRatio', 'clarity', 'apiKey', 'model', 'prompt'].forEach(id => {
+    document.getElementById(id).addEventListener('change', saveState);
+    document.getElementById(id).addEventListener('input', debounce(saveState, 500));
+  });
+}
+
+function getSelectedSize() {
+  const active = document.querySelector('.size-btn.active');
+  return active ? active.dataset.size : '';
+}
+
+// ---- Drop zones ----
+function setupDropZones() {
+  ['refDropZone', 'prodDropZone'].forEach(zoneId => {
+    const zone = document.getElementById(zoneId);
+    const input = zone.querySelector('input[type="file"]');
+    const type = zone.dataset.type;
+
+    zone.addEventListener('click', () => input.click());
+    input.addEventListener('change', e => {
+      handleFiles(Array.from(e.target.files), type);
+      input.value = '';
+    });
+
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', e => { e.preventDefault(); zone.classList.remove('dragover'); });
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+      if (files.length) handleFiles(files, type);
+    });
+  });
+}
+
+function handleFiles(files, type) {
+  let loaded = 0;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = { id: ++idCounter, dataUrl: ev.target.result, name: file.name };
+      if (type === 'ref') refImages.push(img);
+      else prodImages.push(img);
+      loaded++;
+      if (loaded === files.length) {
+        renderAll();
+        saveState();
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// ---- Render ----
+function renderAll() {
+  renderThumbs('ref', refImages, 'refThumbList', 'refCount');
+  renderThumbs('prod', prodImages, 'prodThumbList', 'prodCount');
+  renderPairs();
+  renderHistory();
+}
+
+function renderThumbs(type, images, listId, countId) {
+  const list = document.getElementById(listId);
+  document.getElementById(countId).textContent = images.length;
+  list.innerHTML = '';
+  images.forEach((img, i) => {
+    const div = document.createElement('div');
+    div.className = 'thumb-item';
+    div.draggable = true;
+    div.dataset.type = type;
+    div.dataset.index = i;
+    div.innerHTML = `
+      <img src="${img.dataUrl}" title="${escapeHtml(img.name)}" />
+      <span class="thumb-idx">${i + 1}</span>
+      <button class="thumb-remove" title="移除">&times;</button>
+    `;
+    div.querySelector('.thumb-remove').addEventListener('click', e => {
+      e.stopPropagation();
+      if (type === 'ref') refImages.splice(i, 1);
+      else prodImages.splice(i, 1);
+      renderAll();
+      saveState();
+    });
+
+    // Drag reorder within same type
+    div.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', JSON.stringify({ type, index: i }));
+      div.classList.add('dragging');
+    });
+    div.addEventListener('dragend', () => div.classList.remove('dragging'));
+    div.addEventListener('dragover', e => { e.preventDefault(); div.classList.add('drag-over'); });
+    div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
+    div.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation();
+      div.classList.remove('drag-over');
+      try {
+        const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+        if (data.type === type) {
+          const arr = type === 'ref' ? refImages : prodImages;
+          const [moved] = arr.splice(data.index, 1);
+          arr.splice(i, 0, moved);
+          renderAll();
+          saveState();
+        }
+      } catch(err) {}
+    });
+
+    list.appendChild(div);
+  });
+}
+
+function renderPairs() {
+  const grid = document.getElementById('pairGrid');
+  const count = Math.max(refImages.length, prodImages.length);
+  if (count === 0) {
+    grid.innerHTML = '<div class="empty-state">请先上传参考图和产品图</div>';
+    return;
+  }
+  grid.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const ref = refImages[i];
+    const prod = prodImages[i];
+    // Find existing pair result for this index
+    const pr = pairResults[i];
+
+    const row = document.createElement('div');
+    row.className = 'pair-row';
+
+    let refHtml = ref
+      ? `<div class="pair-img-wrap"><img src="${ref.dataUrl}" /></div>`
+      : `<div class="pair-img-wrap empty">无</div>`;
+
+    let prodHtml = prod
+      ? `<div class="pair-img-wrap"><img src="${prod.dataUrl}" /></div>`
+      : `<div class="pair-img-wrap empty">无</div>`;
+
+    let statusHtml = '';
+    let resultThumb = '';
+    if (pr) {
+      if (pr.status === 'running') {
+        statusHtml = '<span class="status-text running">生成中...</span>';
+      } else if (pr.status === 'success' && pr.resultUrl) {
+        statusHtml = `<span class="status-text success">完成 (${pr.elapsed}s)</span>`;
+        resultThumb = `<div class="pair-result-thumb" onclick="showPreview('${i}')"><img src="${pr.resultUrl}" /></div>`;
+      } else if (pr.status === 'error') {
+        statusHtml = `<span class="status-text error" title="${escapeHtml(pr.error || '')}">失败</span>`;
+      }
+    }
+
+    const canRemove = !isGenerating;
+    row.innerHTML = `
+      <span class="pair-num">#${i + 1}</span>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <div style="text-align:center;font-size:11px;color:#999;">参考图</div>
+        ${refHtml}
+      </div>
+      <span class="pair-arrow">+</span>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <div style="text-align:center;font-size:11px;color:#999;">产品图</div>
+        ${prodHtml}
+      </div>
+      <span class="pair-arrow">&rarr;</span>
+      ${resultThumb}
+      <div class="pair-status">${statusHtml}</div>
+    `;
+    grid.appendChild(row);
+  }
+}
+
+function renderHistory() {
+  const gallery = document.getElementById('resultGallery');
+  if (historyResults.length === 0) {
+    gallery.innerHTML = '<div class="empty-state" style="width:100%;">暂无生成结果</div>';
+    return;
+  }
+  gallery.innerHTML = '';
+  // Show newest first
+  [...historyResults].reverse().forEach((item, ri) => {
+    const idx = historyResults.length - 1 - ri;
+    const card = document.createElement('div');
+    card.className = 'result-card';
+    card.onclick = () => showHistoryPreview(idx);
+    card.innerHTML = `
+      <img src="${item.resultUrl}" />
+      <div class="result-card-info">
+        <div class="rc-time">${item.time} &middot; ${item.elapsed}s</div>
+        <div style="margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(item.size || '')}</div>
+      </div>
+    `;
+    gallery.appendChild(card);
+  });
+}
+
+// ---- Preview modals ----
+function showPreview(pairIndex) {
+  const pr = pairResults[pairIndex];
+  if (!pr || !pr.resultUrl) return;
+  document.getElementById('previewImg').src = pr.resultUrl;
+  document.getElementById('previewDownload').href = pr.resultUrl;
+  document.getElementById('previewTitle').textContent = `配对 #${+pairIndex + 1} 结果`;
+  document.getElementById('previewModal').classList.add('show');
+}
+
+function showHistoryPreview(idx) {
+  const item = historyResults[idx];
+  if (!item) return;
+  document.getElementById('previewImg').src = item.resultUrl;
+  document.getElementById('previewDownload').href = item.resultUrl;
+  document.getElementById('previewTitle').textContent = `${item.time}`;
+  document.getElementById('previewModal').classList.add('show');
+}
+
+function closePreview() {
+  document.getElementById('previewModal').classList.remove('show');
+}
+document.getElementById('previewModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closePreview();
+});
+
+// ---- Batch generation ----
+async function startBatchGeneration() {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if (!apiKey) { alert('请填写 API Key'); return; }
+
+  const count = Math.max(refImages.length, prodImages.length);
+  if (count === 0) { alert('请先上传图片'); return; }
+
+  if (refImages.length === 0) { alert('请至少上传一张参考图'); return; }
+  if (prodImages.length === 0) { alert('请至少上传一张产品图'); return; }
+
+  isGenerating = true;
+  const btn = document.getElementById('batchBtn');
+  const spinner = document.getElementById('batchSpinner');
+  const statusEl = document.getElementById('batchStatus');
+  const progressWrap = document.getElementById('progressWrap');
+  const progressFill = document.getElementById('progressFill');
+
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  progressWrap.style.display = 'block';
+  progressFill.style.width = '0%';
+
+  // Build pairs
+  pairResults = [];
+  for (let i = 0; i < count; i++) {
+    pairResults.push({
+      refIdx: i,
+      prodIdx: i,
+      refUrl: refImages[i]?.dataUrl || null,
+      prodUrl: prodImages[i]?.dataUrl || null,
+      resultUrl: null,
+      status: 'pending',
+      error: null,
+      elapsed: null
+    });
+  }
+  renderPairs();
+
+  let completed = 0;
+  const total = count;
+  const model = document.getElementById('model').value.trim();
+  const prompt = document.getElementById('prompt').value.trim();
+  const size = getSelectedSize();
+  const aspect = document.getElementById('aspectRatio').value;
+  const clarity = document.getElementById('clarity').value;
+
+  statusEl.textContent = `0 / ${total}`;
+
+  // Fire all requests concurrently
+  const promises = pairResults.map((pair, i) => {
+    pair.status = 'running';
+    renderPairs();
+
+    return generateOne(apiKey, model, prompt, size, aspect, clarity, pair).then(result => {
+      pairResults[i] = { ...pairResults[i], ...result };
+      completed++;
+      statusEl.textContent = `${completed} / ${total}`;
+      progressFill.style.width = `${(completed / total * 100).toFixed(0)}%`;
+
+      // Save to history if success
+      if (result.status === 'success' && result.resultUrl) {
+        const sizeLabel = size || '不指定';
+        historyResults.push({
+          resultUrl: result.resultUrl,
+          refUrl: pair.refUrl,
+          prodUrl: pair.prodUrl,
+          prompt,
+          time: new Date().toLocaleTimeString('zh-CN'),
+          elapsed: result.elapsed,
+          size: sizeLabel + (aspect ? ' / ' + aspect : '')
+        });
+      }
+      renderPairs();
+      renderHistory();
+      saveState();
+    });
+  });
+
+  await Promise.all(promises);
+
+  isGenerating = false;
+  btn.disabled = false;
+  spinner.style.display = 'none';
+  statusEl.textContent = `全部完成 (${completed}/${total})`;
+  renderPairs();
+  saveState();
+}
+
+async function generateOne(apiKey, model, prompt, size, aspect, clarity, pair) {
+  const startTime = Date.now();
+  try {
+    // Build content: ref image + product image + text
+    const content = [];
+    if (pair.refUrl) {
+      content.push({ type: 'image_url', image_url: { url: pair.refUrl } });
+    }
+    if (pair.prodUrl) {
+      content.push({ type: 'image_url', image_url: { url: pair.prodUrl } });
+    }
+
+    // Build prompt text
+    let fullPrompt = prompt;
+    if (pair.refUrl && pair.prodUrl) {
+      fullPrompt = `第一张是参考图（风格参考），第二张是产品图（需要处理的原图）。${prompt}`;
+    } else if (pair.refUrl) {
+      fullPrompt = `这是参考图（风格参考）。${prompt}`;
+    } else if (pair.prodUrl) {
+      fullPrompt = `这是产品图（需要处理的原图）。${prompt}`;
+    }
+    content.push({ type: 'text', text: fullPrompt });
+
+    const body = {
+      model,
+      messages: [{ role: 'user', content }],
+      max_tokens: MAX_TOKENS
+    };
+
+    if (size || aspect) {
+      const imageConfig = {};
+      if (size) imageConfig.image_size = size;
+      if (aspect) imageConfig.aspect_ratio = aspect;
+      body.extra_body = { google: { image_config: imageConfig } };
+    }
+
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify(body)
+    });
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    const data = await resp.json();
+
+    if (data.error) {
+      return { status: 'error', error: JSON.stringify(data.error), elapsed };
+    }
+
+    const dataUrl = extractImageDataUrl(data);
+    if (dataUrl) {
+      return { status: 'success', resultUrl: dataUrl, elapsed };
+    } else {
+      const text = data.choices?.[0]?.message?.content || '无图片输出';
+      return { status: 'error', error: text, elapsed };
+    }
+  } catch (err) {
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    return { status: 'error', error: err.message, elapsed };
+  }
+}
+
+function extractImageDataUrl(data) {
+  const content = data.choices?.[0]?.message?.content || '';
+  const imgMatch = content.match(/!\[.*?\]\(data:image\/(png|jpeg|webp|gif);base64,([^)]+)\)/);
+  if (imgMatch) return `data:image/${imgMatch[1]};base64,${imgMatch[2]}`;
+  const rawMatch = content.match(/^data:image\/(png|jpeg|webp|gif);base64,(.+)$/s);
+  if (rawMatch) return `data:image/${rawMatch[1]};base64,${rawMatch[2]}`;
+  const parts = data.choices?.[0]?.message?.parts || [];
+  const inlinePart = parts.find(p => p.inline_data);
+  if (inlinePart) {
+    const mime = inlinePart.inline_data.mime_type || 'image/png';
+    return `data:${mime};base64,${inlinePart.inline_data.data}`;
+  }
+  return null;
+}
+
+// ---- Clear ----
+function clearAllImages() {
+  if (isGenerating) { alert('生成中，请稍候'); return; }
+  if (!confirm('确定清空全部上传的图片？')) return;
+  refImages = [];
+  prodImages = [];
+  pairResults = [];
+  renderAll();
+  saveState();
+}
+
+function clearHistory() {
+  if (!confirm('确定清空所有生成历史？')) return;
+  historyResults = [];
+  renderHistory();
+  saveState();
+}
+
+// ---- Utils ----
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+// ---- Start ----
+init();
+</script>
+</body>
+</html>
