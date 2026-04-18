@@ -480,7 +480,8 @@
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content }
       ],
-      max_tokens: MAX_TOKENS
+      max_tokens: MAX_TOKENS,
+      stream: false
     };
   }
 
@@ -498,9 +499,54 @@
       const text = await resp.text();
       throw new Error(`HTTP ${resp.status}: ${text.substring(0, 300)}`);
     }
-    const data = await resp.json();
+    const text = await resp.text();
+    const data = parseLLMHttpBody(text);
     if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
     return data;
+  }
+
+  // 兼容两种响应：标准 JSON 与 SSE 流（data: {...}\n\n ... data: [DONE]）
+  function parseLLMHttpBody(text) {
+    if (text.trimStart().startsWith('{')) {
+      return JSON.parse(text);
+    }
+    let deltaContent = '';
+    let messageContent = '';
+    let lastObj = null;
+    for (const line of text.split(/\r?\n/)) {
+      if (!line.startsWith('data:')) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === '[DONE]') continue;
+      let obj;
+      try { obj = JSON.parse(payload); } catch { continue; }
+      lastObj = obj;
+      const ch = obj.choices?.[0];
+      if (!ch) continue;
+      if (typeof ch.delta?.content === 'string')  deltaContent   += ch.delta.content;
+      if (typeof ch.delta?.text === 'string')     deltaContent   += ch.delta.text;
+      if (typeof ch.text === 'string')            deltaContent   += ch.text;
+      if (typeof ch.message?.content === 'string' && ch.message.content.length > messageContent.length) {
+        messageContent = ch.message.content;
+      }
+    }
+    if (!lastObj) {
+      throw new Error('SSE 响应为空，原文前 300 字: ' + text.substring(0, 300));
+    }
+    const content = deltaContent || messageContent;
+    if (!content) {
+      const usage = lastObj.usage || {};
+      throw new Error(
+        `SSE 解析出空内容（completion_tokens=${usage.completion_tokens ?? '?'}，模型可能未生成任何 token）。原文前 300 字: ` +
+        text.substring(0, 300)
+      );
+    }
+    return {
+      ...lastObj,
+      choices: [{
+        ...(lastObj.choices?.[0] || {}),
+        message: { role: 'assistant', content }
+      }]
+    };
   }
 
   function parseLLMResponse(data) {
