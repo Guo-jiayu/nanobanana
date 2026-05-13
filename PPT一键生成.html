@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PPT · 一键生成</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f0f2f5; color: #1e293b; min-height: 100vh; padding-bottom: 80px;
+  }
+  .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+  .header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+  }
+  .header h1 { font-size: 22px; font-weight: 700; }
+  .header-actions { display: flex; gap: 10px; }
+
+  .card {
+    background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;
+  }
+  .card-title {
+    font-size: 16px; font-weight: 700; margin-bottom: 14px;
+    border-bottom: 1px solid #eee; padding-bottom: 8px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .form-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;
+  }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group.span2 { grid-column: span 2; }
+  .form-group.span-full { grid-column: 1 / -1; }
+  label { font-size: 13px; font-weight: 600; color: #64748b; }
+  input, select, textarea {
+    padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 8px;
+    font-size: 14px; outline: none; font-family: inherit;
+    transition: border-color 0.15s;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: #4f8cff; box-shadow: 0 0 0 3px rgba(79,140,255,0.12);
+  }
+  textarea { resize: vertical; min-height: 100px; }
+
+  .btn {
+    padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer;
+    font-size: 14px; font-weight: 600; transition: background 0.15s;
+  }
+  .btn-primary { background: #4f8cff; color: #fff; }
+  .btn-primary:hover { background: #3a6fd8; }
+  .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+  .btn-ghost { background: #f1f5f9; color: #475569; }
+  .btn-ghost:hover { background: #e2e8f0; }
+
+  .bottom-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; background: #fff;
+    border-top: 1px solid #e2e8f0; padding: 12px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+    z-index: 100; box-shadow: 0 -2px 6px rgba(0,0,0,0.04);
+  }
+  #statusText { font-size: 14px; color: #475569; }
+
+  /* Banner */
+  .banner {
+    padding: 12px 16px; border-radius: 8px; margin-bottom: 14px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .banner-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .banner-red { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+  .banner-yellow { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+  .banner pre {
+    margin-top: 8px; background: rgba(0,0,0,0.04); padding: 10px; border-radius: 6px;
+    font-size: 12px; max-height: 200px; overflow: auto; white-space: pre-wrap;
+    word-break: break-all; font-family: ui-monospace, monospace;
+  }
+  .banner-btn {
+    padding: 4px 12px; font-size: 12px; background: #fff; border: 1px solid currentColor;
+    border-radius: 6px; cursor: pointer; color: inherit; font-weight: 600;
+  }
+
+  /* Style preview card (after LLM) */
+  #styleCard { display: none; }
+  #styleCard.show { display: block; }
+  .style-base-box {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;
+    font-size: 13px; line-height: 1.6; color: #334155; white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .slide-list {
+    list-style: none; margin-top: 10px; display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px;
+  }
+  .slide-list li {
+    background: #f1f5f9; padding: 8px 10px; border-radius: 6px; font-size: 13px;
+    border-left: 3px solid #4f8cff;
+  }
+  .slide-list li .idx { color: #4f8cff; font-weight: 700; margin-right: 6px; }
+
+  /* Result grid */
+  .result-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;
+  }
+  .result-card {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  .result-card .head {
+    padding: 8px 10px; font-size: 13px; font-weight: 600; color: #1e293b;
+    background: #fff; border-bottom: 1px solid #e2e8f0;
+    display: flex; justify-content: space-between; align-items: center; gap: 6px;
+  }
+  .result-card .head .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .result-card .head .idx { color: #64748b; font-size: 12px; }
+  .result-card .media {
+    aspect-ratio: 16/9; background: #e2e8f0; display: flex; align-items: center;
+    justify-content: center; color: #94a3b8; font-size: 13px; position: relative;
+  }
+  .result-card .media img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
+  .result-card .media .err-text {
+    padding: 8px; font-size: 11px; color: #b91c1c; word-break: break-all;
+  }
+  .result-card .prompt-preview {
+    padding: 6px 10px; font-size: 11px; color: #64748b; max-height: 48px; overflow: hidden;
+    background: #fff; border-top: 1px solid #f1f5f9; cursor: pointer;
+  }
+  .result-card .prompt-preview.expanded { max-height: none; }
+  .result-card .actions { display: flex; gap: 6px; padding: 8px; }
+  .result-card .actions .btn { flex: 1; padding: 5px 8px; font-size: 12px; }
+  .spinner {
+    width: 24px; height: 24px; border: 3px solid #cbd5e1;
+    border-top-color: #4f8cff; border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Modal for zoom */
+  .modal {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+    z-index: 200; cursor: zoom-out; padding: 40px;
+  }
+  .modal.show { display: flex; align-items: center; justify-content: center; }
+  .modal img { max-width: 100%; max-height: 100%; border-radius: 4px; }
+
+  details > summary { cursor: pointer; font-size: 13px; color: #64748b; user-select: none; }
+  details[open] > summary { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🎞️ PPT · 一键生成</h1>
+    <div class="header-actions">
+      <button class="btn btn-ghost" id="clearBtn">🗑️ 清空</button>
+      <button class="btn btn-ghost" id="downloadAllBtn">📦 批量下载</button>
+    </div>
+  </div>
+
+  <div id="errorBanner"></div>
+
+  <div class="card" id="configCard">
+    <div class="card-title">⚙️ 配置</div>
+    <div class="form-grid">
+      <div class="form-group span2">
+        <label>LLM API Key（用于生成 PPT 风格与文案）</label>
+        <input id="llmApiKey" type="password" placeholder="sk-...">
+      </div>
+      <div class="form-group span2">
+        <label>图像 API Key（用于文生图）</label>
+        <input id="imageApiKey" type="password" placeholder="sk-...">
+      </div>
+      <div class="form-group">
+        <label>LLM 模型</label>
+        <input id="llmModel" placeholder="gemini-2.5-pro">
+      </div>
+      <div class="form-group">
+        <label>图像模型</label>
+        <input id="imageModel" value="gemini-3.1-flash-image-preview">
+      </div>
+      <div class="form-group">
+        <label>页数</label>
+        <select id="count">
+          <option value="auto">自动（5-10 页）</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="7">7</option>
+          <option value="8">8</option>
+          <option value="10">10</option>
+          <option value="12">12</option>
+          <option value="15">15</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>并发</label>
+        <select id="concurrency">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="4" selected>4</option>
+          <option value="8">8</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>强制尺寸（留空 = LLM 决定）</label>
+        <select id="forceSize">
+          <option value="">— 留空 —</option>
+          <option value="512">512</option>
+          <option value="1K" selected>1K</option>
+          <option value="2K">2K</option>
+          <option value="4K">4K</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>强制比例（PPT 默认 16:9）</label>
+        <select id="forceAspect">
+          <option value="">— 留空 —</option>
+          <option value="16:9" selected>16:9</option>
+          <option value="9:16">9:16</option>
+          <option value="1:1">1:1</option>
+          <option value="4:3">4:3</option>
+          <option value="3:4">3:4</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="topicCard">
+    <div class="card-title">📝 主题与内容</div>
+    <div class="form-grid">
+      <div class="form-group span-full">
+        <label>PPT 主题（标题）</label>
+        <input id="topic" placeholder="例如：智能体（Agent）入门指南">
+      </div>
+      <div class="form-group">
+        <label>风格偏好</label>
+        <select id="stylePreference">
+          <option value="auto">由 LLM 自动决定</option>
+          <option value="flat_infographic">现代扁平信息图（推荐）</option>
+          <option value="business_minimal">商务简约</option>
+          <option value="tech_future">科技未来</option>
+          <option value="academic">学术严谨</option>
+          <option value="illustration">卡通插画</option>
+          <option value="chinese">中国风</option>
+          <option value="watercolor">水彩手绘</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>语言</label>
+        <select id="language">
+          <option value="zh" selected>简体中文</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+      <div class="form-group span-full">
+        <label>详细内容 / 大纲</label>
+        <textarea id="content" rows="8" placeholder="说明这套 PPT 要传达的内容、关键观点、要包含的数据/案例 等。越具体,生成效果越准确。
+
+例如：
+- 主题：讲解 Agent 由哪几部分组成
+- 核心观点：Agent = 大脑(大模型) + 人设(提示词) + 记忆(知识库) + 手脚(Skills 工具)
+- 希望包含：封面 / 概念定义 / 四个零件分别详解 / 一个简单例子 / 结尾
+- 风格要求：扁平信息图,蓝橙配色,大量留白"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="styleCard">
+    <div class="card-title">
+      <span>🎨 本次统一风格</span>
+      <button class="btn btn-ghost" id="copyStyleBtn" style="padding:4px 12px;font-size:12px;">📋 复制风格</button>
+    </div>
+    <div class="style-base-box" id="styleBaseBox"></div>
+    <details style="margin-top:12px;">
+      <summary>查看所有页的内容大纲</summary>
+      <ul class="slide-list" id="slideList"></ul>
+    </details>
+  </div>
+
+  <div class="card" id="resultCard">
+    <div class="card-title">🖼️ 生成结果</div>
+    <div class="result-grid" id="resultGrid"></div>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <div id="statusText">就绪</div>
+  <button class="btn btn-primary" id="generateBtn">🚀 一键生成 PPT</button>
+</div>
+
+<div class="modal" id="zoomModal"><img id="zoomImg" src=""></div>
+
+<script>
+  // ===== Constants =====
+  const API_URL = 'https://sparkcode.top/v1/chat/completions';
+  const STORAGE_KEY = 'ppt_gen_config';
+  const MAX_TOKENS = 4096;
+  const MAX_RETRIES = 5;
+  const LLM_MAX_ATTEMPTS = 3;
+
+  const STYLE_PRESET_HINTS = {
+    auto: '',
+    flat_infographic: '现代扁平信息图风格,极简设计,干净排版,浅蓝到白色柔和渐变背景,圆角元素,细线图标,统一配色(主色蓝 #3B82F6,点缀橙 #F59E0B,深灰文字 #1F2937),无衬线字体,大量留白,矢量插画,非写实',
+    business_minimal: '商务简约风格,白色或浅灰背景,深蓝 #1E3A8A 与金色 #D4A857 配色,衬线大标题 + 无衬线正文,细横线分隔,极少装饰,专业克制',
+    tech_future: '科技未来风格,深色背景(#0F172A 渐变到 #1E293B),霓虹蓝 #06B6D4 与紫 #A855F7 高光,六边形/电路纹理装饰,无衬线字体,发光效果,赛博朋克 但保持可读',
+    academic: '学术严谨风格,纯白背景,黑色正文,藏青 #1E3A8A 强调色,衬线字体(类似 Times),表格、引用框、脚注样式,极少装饰,克制专业',
+    illustration: '卡通插画风格,温暖明亮的色彩(米黄背景 + 橙红 #F97316 + 草绿 #10B981),手绘风格图标,圆润字体,大量插画元素,轻松活泼',
+    chinese: '中国风,米白宣纸质感背景,墨黑 + 朱红 #B91C1C + 青绿 #047857 配色,书法标题 + 楷体正文,水墨晕染、印章、回字纹装饰,留白讲究',
+    watercolor: '水彩手绘风格,柔和的水彩晕染背景(浅蓝 + 浅粉 + 浅黄),手写字体,水彩笔触装饰,温柔不锐利的边缘'
+  };
+
+  // ===== State =====
+  const state = {
+    topic: '',
+    content: '',
+    stylePreference: 'auto',
+    language: 'zh',
+    styleBase: '',
+    phase: 'idle',            // 'idle' | 'llm' | 'generating' | 'done' | 'llm_failed'
+    llmRawResponse: null,
+    llmAttempt: 0,
+    tasks: []
+  };
+
+  // ===== Helpers =====
+  const $ = id => document.getElementById(id);
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+  }
+  function downloadDataUrl(url, name) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  function zoomImg(src) {
+    $('zoomImg').src = src;
+    $('zoomModal').classList.add('show');
+  }
+  $('zoomModal').addEventListener('click', () => $('zoomModal').classList.remove('show'));
+
+  // ===== Config =====
+  const CONFIG_FIELDS = [
+    'llmApiKey', 'imageApiKey', 'llmModel', 'imageModel',
+    'count', 'concurrency', 'forceSize', 'forceAspect',
+    'stylePreference', 'language'
+  ];
+
+  function saveConfig() {
+    const cfg = {};
+    CONFIG_FIELDS.forEach(id => { cfg[id] = $(id).value; });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+  }
+
+  function loadConfig() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const cfg = JSON.parse(raw);
+      CONFIG_FIELDS.forEach(id => {
+        if (cfg[id] !== undefined && cfg[id] !== '') $(id).value = cfg[id];
+      });
+    } catch (e) {
+      console.warn('localStorage config parse failed:', e);
+    }
+  }
+
+  function bindConfigPersistence() {
+    CONFIG_FIELDS.forEach(id => {
+      $(id).addEventListener('change', saveConfig);
+      $(id).addEventListener('input', saveConfig);
+    });
+  }
+
+  // ===== Topic / Content =====
+  function bindTopicInputs() {
+    $('topic').addEventListener('input', e => { state.topic = e.target.value; });
+    $('content').addEventListener('input', e => { state.content = e.target.value; });
+    $('stylePreference').addEventListener('change', e => { state.stylePreference = e.target.value; });
+    $('language').addEventListener('change', e => { state.language = e.target.value; });
+  }
+
+  // ===== Clear =====
+  function clearAll() {
+    if (!confirm('确认清空主题、内容和生成结果？（配置不会清）')) return;
+    state.topic = '';
+    state.content = '';
+    state.styleBase = '';
+    state.tasks = [];
+    state.llmRawResponse = null;
+    state.llmAttempt = 0;
+    state.phase = 'idle';
+    $('topic').value = '';
+    $('content').value = '';
+    renderStyleCard();
+    renderResultGrid();
+    clearError();
+    updateStatusBar();
+  }
+
+  // ===== Download All =====
+  function downloadAll() {
+    const done = state.tasks.filter(t => t.status === 'done' && t.result);
+    if (done.length === 0) {
+      alert('没有可下载的图片');
+      return;
+    }
+    done.forEach((t, i) => {
+      const safeTitle = (t.title || `slide_${i + 1}`).replace(/[\\/:*?"<>|]/g, '_');
+      setTimeout(() => downloadDataUrl(t.result, `${String(i + 1).padStart(2, '0')}_${safeTitle}.png`), i * 300);
+    });
+  }
+
+  // ===== Status Bar =====
+  const PHASE_LABEL = {
+    idle: '就绪',
+    llm: 'LLM 设计风格与内容中...',
+    generating: '并发生图中',
+    done: '完成',
+    llm_failed: 'LLM 阶段失败'
+  };
+
+  function updateStatusBar() {
+    const total = state.tasks.length;
+    const ok = state.tasks.filter(t => t.status === 'done').length;
+    const err = state.tasks.filter(t => t.status === 'error').length;
+    let text = PHASE_LABEL[state.phase] || state.phase;
+    if (state.phase === 'llm' && state.llmAttempt > 0) {
+      text += `（第 ${state.llmAttempt}/${LLM_MAX_ATTEMPTS} 次）`;
+    }
+    if (total > 0) text += ` ｜ 成功 ${ok} / 失败 ${err} / 总数 ${total}`;
+    $('statusText').textContent = text;
+
+    const busy = state.phase === 'llm' || state.phase === 'generating';
+    $('generateBtn').disabled = busy;
+  }
+
+  // ===== Error Banner =====
+  function showError(level, message, rawText) {
+    const cls = level === 'yellow' ? 'banner-yellow' : 'banner-red';
+    const rawBlock = rawText
+      ? `<details><summary style="cursor:pointer;font-size:13px;">展开 LLM 原文</summary><pre>${escapeHtml(rawText)}</pre></details>`
+      : '';
+    $('errorBanner').innerHTML = `
+      <div class="banner ${cls}">
+        <div class="banner-row">
+          <div>${escapeHtml(message)}</div>
+          <button class="banner-btn" id="retryLlmBtn">🔁 重试 LLM</button>
+        </div>
+        ${rawBlock}
+      </div>
+    `;
+    $('retryLlmBtn').addEventListener('click', retryLLM);
+  }
+
+  function clearError() {
+    $('errorBanner').innerHTML = '';
+  }
+
+  // ===== Stage 1: LLM =====
+  const SYSTEM_PROMPT =
+`你是 PPT 设计专家。基于用户提供的主题与内容,先确定一套统一的视觉风格(style_base),再设计若干页幻灯片的内容大纲(slides)。这些内容会被拼接成文生图提示词送入图像模型,每一页生成一张图。
+
+输出**只能**是一个 JSON 对象(不要包裹 markdown 代码块、不要任何额外文字),结构如下:
+{
+  "style_base": "<统一的视觉风格描述,会拼接到每一页 prompt 开头。必须包含:风格定位、背景色与渐变、主色与点缀色(用十六进制)、字体风格、装饰元素、构图原则、'高端 PPT 幻灯片质感'、'矢量插画'、文字语言关键词>",
+  "slides": [
+    {
+      "title": "<8 字以内的页标题,用于 UI 展示>",
+      "content_description": "<该页的具体构图与文字描述,包含:页面类型(封面/目录/章节/内容/图表/对比/案例/结尾)、布局(居中/左右/上下/四象限/卡片网格...)、图标与装饰元素的位置、要在画面中显示的文字内容(用中文引号「」或英文引号包裹)>",
+      "size": "<可选: 512 | 1K | 2K | 4K>",
+      "aspect_ratio": "<可选: 1:1 | 16:9 | 9:16 | 4:3 | 3:4。PPT 默认 16:9>"
+    }
+  ]
+}
+
+设计原则:
+1. **风格统一是最重要的目标**: style_base 一旦确定就是全 deck 的视觉基线,绝对不要在某一页的 content_description 中重新指定背景色、配色或字体——那会破坏一致性。
+2. **完整的 PPT 节奏**: 通常是 封面 → (目录) → 内容页(若干,可按逻辑分段) → (案例/数据) → 结尾。如果用户指定了具体章节,严格按用户的结构走。
+3. **每页文字内容显式写出**: PPT 的核心是"画面上能看到的文字"。content_description 必须明确写清这一页要在画面上显示哪些文字(标题、副标题、要点列表、数据、引用),不要让图像模型自己编。
+4. **少字、高密度信息**: 每页文字精炼,标题 < 15 字,要点 < 20 字/条,符合 PPT 风格。
+5. **图标 / 装饰元素具体化**: 不要只说"加点装饰",要说"左上角放一个细线齿轮图标,右下角放一个细线对话气泡"。
+6. **页数控制**: 当用户指定页数时严格按数量返回;未指定时返回 5-10 页之间的合理数量。
+7. **aspect_ratio 默认全部 16:9**, 除非用户明确要求其他比例。
+8. style_base 长度建议 60-150 字;每页 content_description 长度建议 50-200 字。`;
+
+  class ParseError extends Error {
+    constructor(message, raw) { super(message); this.raw = raw; }
+  }
+
+  function buildLLMUserText(count) {
+    const stylePref = $('stylePreference').value;
+    const lang = $('language').value === 'en' ? 'English' : '简体中文';
+    const stylePrefHint = STYLE_PRESET_HINTS[stylePref] || '';
+
+    let text = '';
+    text += `PPT 主题：${state.topic || '(未填写,请基于详细内容自行提炼)'}\n\n`;
+    text += `详细内容 / 大纲：\n${state.content || '(未填写)'}\n\n`;
+    text += `语言要求：画面中的所有文字使用 ${lang}。请在 style_base 末尾明确写出"画面文字使用 ${lang}"。\n\n`;
+    if (stylePrefHint) {
+      text += `风格偏好提示（请将以下风格融入 style_base,可适度发挥）：\n${stylePrefHint}\n\n`;
+    } else {
+      text += `风格偏好：未指定,请基于主题与内容自行决定最合适的视觉风格。\n\n`;
+    }
+    text += (count === 'auto'
+      ? '页数：请生成 5-10 页之间的合理数量。'
+      : `页数：请生成正好 ${count} 页。`);
+    return text;
+  }
+
+  function buildLLMRequest(apiKey, model, count) {
+    return {
+      model,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user',   content: buildLLMUserText(count) }
+      ],
+      max_tokens: MAX_TOKENS,
+      stream: false
+    };
+  }
+
+  async function callLLM(apiKey, model, count) {
+    const body = buildLLMRequest(apiKey, model, count);
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${text.substring(0, 300)}`);
+    }
+    const text = await resp.text();
+    const data = parseLLMHttpBody(text);
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    return data;
+  }
+
+  // 兼容两种响应：标准 JSON 与 SSE 流（data: {...}\n\n ... data: [DONE]）
+  function parseLLMHttpBody(text) {
+    const trimmed = text.replace(/^﻿/, '').trimStart();
+
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try { return JSON.parse(trimmed); } catch { /* fall through */ }
+    }
+
+    let deltaContent = '';
+    let messageContent = '';
+    let lastObj = null;
+    for (const rawLine of trimmed.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line.startsWith('data:')) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === '[DONE]') continue;
+      let obj;
+      try { obj = JSON.parse(payload); } catch { continue; }
+      lastObj = obj;
+      const ch = obj.choices?.[0];
+      if (!ch) continue;
+      if (typeof ch.delta?.content === 'string')  deltaContent   += ch.delta.content;
+      if (typeof ch.delta?.text === 'string')     deltaContent   += ch.delta.text;
+      if (typeof ch.text === 'string')            deltaContent   += ch.text;
+      if (typeof ch.message?.content === 'string' && ch.message.content.length > messageContent.length) {
+        messageContent = ch.message.content;
+      }
+    }
+
+    if (lastObj) {
+      const content = deltaContent || messageContent;
+      if (content) {
+        return {
+          ...lastObj,
+          choices: [{
+            ...(lastObj.choices?.[0] || {}),
+            message: { role: 'assistant', content }
+          }]
+        };
+      }
+      const usage = lastObj.usage || {};
+      throw new Error(
+        `SSE 解析出空内容（completion_tokens=${usage.completion_tokens ?? '?'}，可能被截断或模型未生成）。原文前 300 字: ` +
+        text.substring(0, 300)
+      );
+    }
+
+    const match = trimmed.match(/\{[\s\S]*\}/);
+    if (match) {
+      try { return JSON.parse(match[0]); } catch { /* fall through */ }
+    }
+
+    throw new Error('响应既非 JSON 也非 SSE 流。原文前 300 字: ' + text.substring(0, 300));
+  }
+
+  function parseLLMResponse(data) {
+    const content = data.choices?.[0]?.message?.content;
+    if (!content || typeof content !== 'string') {
+      throw new ParseError('LLM 未返回文本内容', JSON.stringify(data).substring(0, 500));
+    }
+
+    let obj;
+    try { obj = JSON.parse(content); }
+    catch {
+      const fenced = content.match(/```(?:json)?\s*([\s\S]+?)```/);
+      if (fenced) {
+        try { obj = JSON.parse(fenced[1]); } catch {}
+      }
+    }
+    if (!obj) {
+      const m = content.match(/\{[\s\S]*\}/);
+      if (m) {
+        try { obj = JSON.parse(m[0]); } catch {}
+      }
+    }
+
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+      throw new ParseError('未能解析为 JSON 对象', content);
+    }
+    if (typeof obj.style_base !== 'string' || !obj.style_base.trim()) {
+      throw new ParseError('缺少 style_base 字段或为空', content);
+    }
+    if (!Array.isArray(obj.slides) || obj.slides.length === 0) {
+      throw new ParseError('slides 字段缺失或为空数组', content);
+    }
+
+    const styleBase = obj.style_base.trim();
+    const slides = obj.slides.map((item, i) => {
+      if (!item || typeof item !== 'object') {
+        throw new ParseError(`第 ${i + 1} 项 slide 不是对象`, content);
+      }
+      if (typeof item.content_description !== 'string' || !item.content_description.trim()) {
+        throw new ParseError(`第 ${i + 1} 页 content_description 为空`, content);
+      }
+      return {
+        title: (typeof item.title === 'string' && item.title.trim()) ? item.title.trim() : `第 ${i + 1} 页`,
+        contentDescription: item.content_description.trim(),
+        size: typeof item.size === 'string' ? item.size : null,
+        aspect: typeof item.aspect_ratio === 'string' ? item.aspect_ratio : null
+      };
+    });
+
+    return { styleBase, slides };
+  }
+
+  // ===== Stage 2: Image API =====
+  function snapshotImageConfig() {
+    return {
+      apiKey:   $('imageApiKey').value.trim(),
+      model:    $('imageModel').value.trim(),
+      uiSize:   $('forceSize').value,
+      uiAspect: $('forceAspect').value
+    };
+  }
+
+  // 把 style_base 和 content_description 拼成最终的文生图 prompt
+  function composePrompt(task) {
+    return `${state.styleBase}。\n\n${task.contentDescription}`;
+  }
+
+  function buildImageRequest(task, snap) {
+    const size   = snap.uiSize   || task.size   || null;
+    const aspect = snap.uiAspect || task.aspect || '16:9';
+
+    const fullPrompt = composePrompt(task);
+
+    const body = {
+      model: snap.model,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: fullPrompt }
+        ]
+      }],
+      max_tokens: MAX_TOKENS
+    };
+
+    const cfg = {};
+    if (size)   cfg.image_size = size;
+    if (aspect) cfg.aspect_ratio = aspect;
+    if (Object.keys(cfg).length) {
+      body.extra_body = { google: { image_config: cfg } };
+    }
+    return body;
+  }
+
+  function extractImageFromResponse(data) {
+    const message = data.choices?.[0]?.message;
+    if (!message) throw new Error('API 响应中没有 message 字段');
+
+    const finishReason = data.choices?.[0]?.finish_reason;
+    if (finishReason === 'content_filter') {
+      throw new Error('CONTENT_FILTER: 被内容安全过滤器拦截,将自动重试');
+    }
+
+    const content = message.content;
+
+    if (Array.isArray(content)) {
+      for (const part of content) {
+        if (part.type === 'image_url' && part.image_url?.url) return part.image_url.url;
+        if (part.inline_data) {
+          return `data:${part.inline_data.mime_type || 'image/png'};base64,${part.inline_data.data}`;
+        }
+        if (typeof part.text === 'string') {
+          const m = part.text.match(/data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+/);
+          if (m) return m[0];
+        }
+        if (typeof part === 'string') {
+          const m = part.match(/data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+/);
+          if (m) return m[0];
+        }
+      }
+    }
+
+    if (typeof content === 'string' && content.length > 0) {
+      const m = content.match(/data:image\/[a-zA-Z+]+;base64,[A-Za-z0-9+/=]+/);
+      if (m) return m[0];
+    }
+
+    const parts = message.parts || [];
+    for (const p of parts) {
+      if (p.inline_data) {
+        return `data:${p.inline_data.mime_type || 'image/png'};base64,${p.inline_data.data}`;
+      }
+    }
+
+    if (data.data?.[0]?.b64_json) return `data:image/png;base64,${data.data[0].b64_json}`;
+    if (data.data?.[0]?.url)      return data.data[0].url;
+
+    const preview = typeof content === 'string'
+      ? content.substring(0, 200)
+      : JSON.stringify(content)?.substring(0, 200);
+    throw new Error(`解析失败(content type=${typeof content}). 前 200 字: ${preview}`);
+  }
+
+  async function callImageAPI(task, snap) {
+    const body = buildImageRequest(task, snap);
+    const resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + snap.apiKey
+      },
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${text.substring(0, 200)}`);
+    }
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    return extractImageFromResponse(data);
+  }
+
+  // ===== Worker Pool =====
+  async function runOneTask(task, snap, maxRetries) {
+    task.status = 'running';
+    task.error = null;
+    renderResultCard(task);
+    updateStatusBar();
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      task.attempts = attempt;
+      try {
+        const url = await callImageAPI(task, snap);
+        task.result = url;
+        task.status = 'done';
+        task.error = null;
+        break;
+      } catch (e) {
+        const retryable = e.message.includes('CONTENT_FILTER');
+        console.warn(`[Task ${task.id}] attempt ${attempt} failed:`, e.message);
+        if (attempt < maxRetries && retryable) {
+          await sleep(1000 + Math.random() * 1000);
+          continue;
+        }
+        task.status = 'error';
+        task.error = attempt > 1 ? `${attempt}次尝试均失败: ${e.message}` : e.message;
+        break;
+      }
+    }
+
+    renderResultCard(task);
+    updateStatusBar();
+  }
+
+  async function runImageStage() {
+    const concurrency = parseInt($('concurrency').value, 10) || 4;
+    const snap = snapshotImageConfig();
+    const queue = state.tasks.filter(t => t.status === 'wait');
+
+    const workers = Array(Math.min(concurrency, queue.length))
+      .fill(0)
+      .map(async () => {
+        while (queue.length) {
+          const task = queue.shift();
+          if (!task) continue;
+          await runOneTask(task, snap, MAX_RETRIES);
+        }
+      });
+    await Promise.all(workers);
+  }
+
+  // ===== Style Card =====
+  function renderStyleCard() {
+    const card = $('styleCard');
+    if (!state.styleBase) {
+      card.classList.remove('show');
+      $('styleBaseBox').textContent = '';
+      $('slideList').innerHTML = '';
+      return;
+    }
+    card.classList.add('show');
+    $('styleBaseBox').textContent = state.styleBase;
+
+    const list = $('slideList');
+    list.innerHTML = '';
+    state.tasks.forEach((t, i) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="idx">${i + 1}.</span>${escapeHtml(t.title)}`;
+      li.title = t.contentDescription;
+      list.appendChild(li);
+    });
+  }
+
+  // ===== Result Grid =====
+  function renderResultGrid() {
+    const grid = $('resultGrid');
+    grid.innerHTML = '';
+    state.tasks.forEach((t, i) => {
+      const card = document.createElement('div');
+      card.className = 'result-card';
+      card.id = `task-${t.id}`;
+      card.innerHTML = renderCardInner(t, i);
+      grid.appendChild(card);
+      bindCardActions(card, t);
+    });
+  }
+
+  function renderResultCard(task) {
+    const card = $(`task-${task.id}`);
+    const idx = state.tasks.findIndex(t => t.id === task.id);
+    if (!card) {
+      renderResultGrid();
+      return;
+    }
+    card.innerHTML = renderCardInner(task, idx);
+    bindCardActions(card, task);
+  }
+
+  function renderCardInner(t, idx) {
+    let media = '';
+    if (t.status === 'wait') {
+      media = `<div class="media">⏳ 等待</div>`;
+    } else if (t.status === 'running') {
+      media = `<div class="media"><div class="spinner"></div></div>`;
+    } else if (t.status === 'done' && t.result) {
+      media = `<div class="media"><img src="${t.result}" data-zoom></div>`;
+    } else if (t.status === 'error') {
+      media = `<div class="media"><div class="err-text">❌ ${escapeHtml(t.error || '生成失败')}</div></div>`;
+    } else {
+      media = `<div class="media">—</div>`;
+    }
+
+    let actions = '';
+    if (t.status === 'done') {
+      actions = `<button class="btn btn-primary" data-act="download">💾 下载</button>
+                 <button class="btn btn-ghost" data-act="retry">🔄 重试</button>`;
+    } else if (t.status === 'error') {
+      actions = `<button class="btn btn-ghost" data-act="retry">🔄 重试这张</button>`;
+    } else {
+      actions = `<button class="btn btn-ghost" disabled>···</button>`;
+    }
+
+    const head = `
+      <div class="head">
+        <span class="title" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</span>
+        <span class="idx">#${(idx ?? 0) + 1}</span>
+      </div>`;
+
+    const promptPreview = `
+      <div class="prompt-preview" data-act="toggle-prompt" title="点击展开/收起完整提示词">
+        ${escapeHtml(t.contentDescription)}
+      </div>`;
+
+    return head + media + promptPreview + `<div class="actions">${actions}</div>`;
+  }
+
+  function bindCardActions(card, t) {
+    const img = card.querySelector('img[data-zoom]');
+    if (img) img.addEventListener('click', () => zoomImg(img.src));
+    const dl = card.querySelector('[data-act="download"]');
+    if (dl) dl.addEventListener('click', () => {
+      const idx = state.tasks.findIndex(x => x.id === t.id);
+      const safeTitle = (t.title || `slide_${idx + 1}`).replace(/[\\/:*?"<>|]/g, '_');
+      downloadDataUrl(t.result, `${String(idx + 1).padStart(2, '0')}_${safeTitle}.png`);
+    });
+    const rt = card.querySelector('[data-act="retry"]');
+    if (rt) rt.addEventListener('click', () => retryOne(t.id));
+    const toggle = card.querySelector('[data-act="toggle-prompt"]');
+    if (toggle) toggle.addEventListener('click', () => toggle.classList.toggle('expanded'));
+  }
+
+  async function retryOne(taskId) {
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    task.status = 'wait';
+    task.error = null;
+    task.attempts = 0;
+    task.result = null;
+    await runOneTask(task, snapshotImageConfig(), MAX_RETRIES);
+  }
+
+  // ===== Generator (entry) =====
+  function validateInputs() {
+    if (!$('llmApiKey').value.trim())   { alert('请填写 LLM API Key');   return false; }
+    if (!$('imageApiKey').value.trim()) { alert('请填写 图像 API Key'); return false; }
+    if (!$('llmModel').value.trim())    { alert('请填写 LLM 模型');     return false; }
+    if (!$('imageModel').value.trim())  { alert('请填写 图像模型');     return false; }
+    if (!$('topic').value.trim() && !$('content').value.trim()) {
+      alert('请至少填写 PPT 主题或详细内容');
+      return false;
+    }
+    return true;
+  }
+
+  let _taskIdSeq = 0;
+  function nextTaskId() { return ++_taskIdSeq; }
+
+  async function runStage1() {
+    const llmKey = $('llmApiKey').value.trim();
+    const llmModel = $('llmModel').value.trim();
+    const count = $('count').value;
+
+    state.phase = 'llm';
+    state.llmRawResponse = null;
+    state.llmAttempt = 0;
+    state.styleBase = '';
+    clearError();
+    renderStyleCard();
+    updateStatusBar();
+
+    let lastError = null;
+    let lastRaw = null;
+    let lastIsParseError = false;
+
+    for (let attempt = 1; attempt <= LLM_MAX_ATTEMPTS; attempt++) {
+      state.llmAttempt = attempt;
+      updateStatusBar();
+      try {
+        const llmData = await callLLM(llmKey, llmModel, count);
+        state.llmRawResponse = llmData.choices?.[0]?.message?.content || JSON.stringify(llmData);
+        const parsed = parseLLMResponse(llmData);
+        return parsed;
+      } catch (e) {
+        lastError = e;
+        lastIsParseError = e instanceof ParseError;
+        lastRaw = (lastIsParseError && e.raw) || state.llmRawResponse;
+        console.warn(`[LLM] attempt ${attempt}/${LLM_MAX_ATTEMPTS} failed:`, e.message);
+        if (attempt < LLM_MAX_ATTEMPTS) {
+          await sleep(600 + Math.random() * 600);
+        }
+      }
+    }
+
+    state.phase = 'llm_failed';
+    updateStatusBar();
+    showError(
+      lastIsParseError ? 'yellow' : 'red',
+      `LLM 连续 ${LLM_MAX_ATTEMPTS} 次失败：${lastError?.message || '未知错误'}`,
+      lastRaw
+    );
+    return null;
+  }
+
+  async function generate() {
+    if (state.phase === 'llm' || state.phase === 'generating') return;
+    if (!validateInputs()) return;
+
+    // 同步一下 state（防止用户没触发 input 事件）
+    state.topic = $('topic').value;
+    state.content = $('content').value;
+    state.stylePreference = $('stylePreference').value;
+    state.language = $('language').value;
+
+    state.tasks = [];
+    state.styleBase = '';
+    renderStyleCard();
+    renderResultGrid();
+
+    const parsed = await runStage1();
+    if (!parsed) return;
+
+    state.styleBase = parsed.styleBase;
+    state.tasks = parsed.slides.map(s => ({
+      id: nextTaskId(),
+      title: s.title,
+      contentDescription: s.contentDescription,
+      size: s.size,
+      aspect: s.aspect,
+      status: 'wait',
+      result: null,
+      error: null,
+      attempts: 0
+    }));
+    renderStyleCard();
+    renderResultGrid();
+
+    state.phase = 'generating';
+    updateStatusBar();
+
+    await runImageStage();
+
+    state.phase = 'done';
+    updateStatusBar();
+  }
+
+  async function retryLLM() {
+    if (state.phase === 'llm' || state.phase === 'generating') return;
+    await generate();
+  }
+
+  function bindCopyStyle() {
+    $('copyStyleBtn').addEventListener('click', async () => {
+      if (!state.styleBase) return;
+      try {
+        await navigator.clipboard.writeText(state.styleBase);
+        const btn = $('copyStyleBtn');
+        const old = btn.textContent;
+        btn.textContent = '✓ 已复制';
+        setTimeout(() => { btn.textContent = old; }, 1500);
+      } catch (e) {
+        alert('复制失败,请手动选中复制');
+      }
+    });
+  }
+
+  // ===== Init =====
+  window.addEventListener('DOMContentLoaded', () => {
+    loadConfig();
+    bindConfigPersistence();
+    bindTopicInputs();
+    bindCopyStyle();
+    $('clearBtn').addEventListener('click', clearAll);
+    $('downloadAllBtn').addEventListener('click', downloadAll);
+    $('generateBtn').addEventListener('click', generate);
+    updateStatusBar();
+  });
+</script>
+</body>
+</html>
